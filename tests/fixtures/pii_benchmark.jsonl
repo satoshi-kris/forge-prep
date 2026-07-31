@@ -1,0 +1,125 @@
+{"text": "Please contact sarah.jones@northwind-consulting.com for a quote.", "expected_type": "email", "label": true}
+{"text": "Reach the helpdesk at it.support@globex-corp.io any time.", "expected_type": "email", "label": true}
+{"text": "New hire onboarding: send documents to hr.intake@meridian-labs.co.uk", "expected_type": "email", "label": true}
+{"text": "For billing questions, write finance.ap@acme-industries.com.", "expected_type": "email", "label": true}
+{"text": "The vendor's contact is m.tanaka@fujimoto-trading.jp.", "expected_type": "email", "label": true}
+{"text": "Escalate outages to oncall+sev1@cloudforge.dev immediately.", "expected_type": "email", "label": true}
+{"text": "Marketing list signups go through newsletter@brightpath.org.", "expected_type": "email", "label": true}
+{"text": "Legal correspondence: counsel@sterling-partners.law", "expected_type": "email", "label": true}
+{"text": "Send the signed NDA to procurement@delta-manufacturing.com", "expected_type": "email", "label": true}
+{"text": "@channel please review the PR before end of day", "expected_type": "email", "label": false}
+{"text": "cc finance-team, no direct contact needed for this one", "expected_type": "email", "label": false}
+{"text": "the report references section 4.2.1, not an external address", "expected_type": "email", "label": false}
+{"text": "ticket number 4521 needs review by the on-call engineer", "expected_type": "email", "label": false}
+{"text": "the config key is service.retry@attempt in the yaml file", "expected_type": "email", "label": false}
+{"text": "Call our Paris office at +33 1 42 68 53 00 for support.", "expected_type": "phone_intl", "label": true}
+{"text": "Reach Berlin reception on +49 30 2574 1180 weekdays.", "expected_type": "phone_intl", "label": true}
+{"text": "US sales line: +1 415 555 0148, available 9-5 PT.", "expected_type": "phone_intl", "label": true}
+{"text": "London desk: +44 20 7946 0958, ask for Priya.", "expected_type": "phone_intl", "label": true}
+{"text": "Madrid support: +34 91 123 45 67 during business hours.", "expected_type": "phone_intl", "label": true}
+{"text": "Emergency contact for the Milan site: +39 02 8734 5521.", "expected_type": "phone_intl", "label": true}
+{"text": "Amsterdam ops: +31 20 555 0199, escalate P1 only.", "expected_type": "phone_intl", "label": true}
+{"text": "Zurich compliance: +41 44 123 88 99.", "expected_type": "phone_intl", "label": true}
+{"text": "Toronto helpdesk: +1 416 555 0199 for Canadian clients.", "expected_type": "phone_intl", "label": true}
+{"text": "order +1 415 555 0148 confirmed for pickup", "expected_type": "phone_intl", "label": false}
+{"text": "version +33 1 42 68 53 00 deprecated in favor of v2", "expected_type": "phone_intl", "label": false}
+{"text": "build +49 30 2574 1180 tagged for staging", "expected_type": "phone_intl", "label": false}
+{"text": "batch +44 20 7946 0958 reprocessed overnight", "expected_type": "phone_intl", "label": false}
+{"text": "ref +34 91 123 45 67 closed without resolution", "expected_type": "phone_intl", "label": false}
+{"text": "sku +39 02 8734 5521 discontinued this quarter", "expected_type": "phone_intl", "label": false}
+{"text": "connection observed from 8.8.8.8 in the access log", "expected_type": "ip_address", "label": true}
+{"text": "connection observed from 1.1.1.1 in the access log", "expected_type": "ip_address", "label": true}
+{"text": "connection observed from 93.184.216.34 in the access log", "expected_type": "ip_address", "label": true}
+{"text": "connection observed from 172.217.14.206 in the access log", "expected_type": "ip_address", "label": true}
+{"text": "connection observed from 104.16.132.229 in the access log", "expected_type": "ip_address", "label": true}
+{"text": "connection observed from 13.107.42.14 in the access log", "expected_type": "ip_address", "label": true}
+{"text": "connection observed from 140.82.112.3 in the access log", "expected_type": "ip_address", "label": true}
+{"text": "connection observed from 34.102.136.180 in the access log", "expected_type": "ip_address", "label": true}
+{"text": "connection observed from 151.101.1.140 in the access log", "expected_type": "ip_address", "label": true}
+{"text": "internal server at 192.168.1.100 handles traffic", "expected_type": "ip_address", "label": false}
+{"text": "the batch job runs on 10.0.0.5 every night", "expected_type": "ip_address", "label": false}
+{"text": "bound to loopback address 127.0.0.1 for local testing", "expected_type": "ip_address", "label": false}
+{"text": "the router advertises link-local address 169.254.0.5", "expected_type": "ip_address", "label": false}
+{"text": "internal subnet uses 172.31.255.1 for the gateway", "expected_type": "ip_address", "label": false}
+{"text": "malformed entry 999.1.2.3 was dropped by the parser", "expected_type": "ip_address", "label": false}
+{"text": "malformed entry 300.168.1.1 was dropped by the parser", "expected_type": "ip_address", "label": false}
+{"text": "running build 8.1.2.3.4 tonight", "expected_type": "ip_address", "label": false}
+{"text": "upgrade to version 10.2.14.3.1 recommended", "expected_type": "ip_address", "label": false}
+{"text": "The card on file is 4111 1111 1111 1111, charged for the annual renewal.", "expected_type": "credit_card", "label": true}
+{"text": "The card on file is 5500 0055 5555 5559, charged for the annual renewal.", "expected_type": "credit_card", "label": true}
+{"text": "The card on file is 6011 0000 0000 0004, charged for the annual renewal.", "expected_type": "credit_card", "label": true}
+{"text": "The card on file is 4012 8888 8888 1881, charged for the annual renewal.", "expected_type": "credit_card", "label": true}
+{"text": "The card on file is 5105 1051 0510 5100, charged for the annual renewal.", "expected_type": "credit_card", "label": true}
+{"text": "The card on file is 4532 1122 3344 5560, charged for the annual renewal.", "expected_type": "credit_card", "label": true}
+{"text": "The card on file is 4532 9876 1234 5675, charged for the annual renewal.", "expected_type": "credit_card", "label": true}
+{"text": "The card on file is 6011 6011 6011 6017, charged for the annual renewal.", "expected_type": "credit_card", "label": true}
+{"text": "The card on file is 4000 0000 0000 0002, charged for the annual renewal.", "expected_type": "credit_card", "label": true}
+{"text": "order id 4532 1122 3344 5566", "expected_type": "credit_card", "label": false}
+{"text": "invoice number 1234 5678 9012 3456", "expected_type": "credit_card", "label": false}
+{"text": "tracking code 9999 8888 7777 6665", "expected_type": "credit_card", "label": false}
+{"text": "reference 1111 2222 3333 4441", "expected_type": "credit_card", "label": false}
+{"text": "batch 4000 1234 5678 9010", "expected_type": "credit_card", "label": false}
+{"text": "ticket 5000 6000 7000 8000", "expected_type": "credit_card", "label": false}
+{"text": "confirmation 2020 2021 2022 2023", "expected_type": "credit_card", "label": false}
+{"text": "po number 3141 5926 5358 9793", "expected_type": "credit_card", "label": false}
+{"text": "sku group 7000 1000 2000 3000", "expected_type": "credit_card", "label": false}
+{"text": "Please update her file — SSN 234-56-7890 needs verification.", "expected_type": "ssn_us", "label": true}
+{"text": "The applicant provided 555-01-2345 as their social security number.", "expected_type": "ssn_us", "label": true}
+{"text": "Employee record shows 402-88-1234 on the tax form.", "expected_type": "ssn_us", "label": true}
+{"text": "His social security number, 118-45-6789, was on the document.", "expected_type": "ssn_us", "label": true}
+{"text": "The background check listed 233-90-1122 for the candidate.", "expected_type": "ssn_us", "label": true}
+{"text": "HR needs the number 076-33-9911 confirmed before payroll runs.", "expected_type": "ssn_us", "label": true}
+{"text": "Patient identifier 512-77-0022 was found in the old export.", "expected_type": "ssn_us", "label": true}
+{"text": "The lease application included 345-66-8890 as the guarantor SSN.", "expected_type": "ssn_us", "label": true}
+{"text": "Court filing referenced 690-12-4433 for the defendant.", "expected_type": "ssn_us", "label": true}
+{"text": "order id 234-56-7890 shipped today", "expected_type": "ssn_us", "label": false}
+{"text": "invoice ref 123-45-6789 attached", "expected_type": "ssn_us", "label": false}
+{"text": "sku 045-12-3456 discontinued", "expected_type": "ssn_us", "label": false}
+{"text": "batch 555-11-2222 processed", "expected_type": "ssn_us", "label": false}
+{"text": "build 321-54-9876 tagged for release", "expected_type": "ssn_us", "label": false}
+{"text": "version 100-20-3000 released today", "expected_type": "ssn_us", "label": false}
+{"text": "the case id 402-88-1234 was closed", "expected_type": "ssn_us", "label": false}
+{"text": "po ref 200-33-4455 approved", "expected_type": "ssn_us", "label": false}
+{"text": "Please wire the balance to account FR2729141777631706690743915 before month end.", "expected_type": "iban", "label": true}
+{"text": "Please wire the balance to account DE46011524493909266858 before month end.", "expected_type": "iban", "label": true}
+{"text": "Please wire the balance to account ES9139825979190748337887 before month end.", "expected_type": "iban", "label": true}
+{"text": "Please wire the balance to account IT9034167211068403885421430 before month end.", "expected_type": "iban", "label": true}
+{"text": "Please wire the balance to account NL3894580730215736 before month end.", "expected_type": "iban", "label": true}
+{"text": "Please wire the balance to account BE74917400297550 before month end.", "expected_type": "iban", "label": true}
+{"text": "Please wire the balance to account GB32526018159083016613 before month end.", "expected_type": "iban", "label": true}
+{"text": "Please wire the balance to account FR2035623012383607776793617 before month end.", "expected_type": "iban", "label": true}
+{"text": "Please wire the balance to account GB63795422058791589062 before month end.", "expected_type": "iban", "label": true}
+{"text": "reference number FR7630006000011234567890188 was rejected", "expected_type": "iban", "label": false}
+{"text": "account code DE81854123293427424522 failed validation", "expected_type": "iban", "label": false}
+{"text": "the string PT50000201231234567890154 is not a supported country", "expected_type": "iban", "label": false}
+{"text": "internal code XX1234567890123456789 looked IBAN-shaped but was not", "expected_type": "iban", "label": false}
+{"text": "test value NL2119040377936867 failed the bank check", "expected_type": "iban", "label": false}
+{"text": "BE35778897772135 does not pass verification", "expected_type": "iban", "label": false}
+{"text": "GB42655536303423465353 was flagged as malformed", "expected_type": "iban", "label": false}
+{"text": "Numero de securite sociale : 1 85 06 75 115 328 69 figure sur le document.", "expected_type": "french_nir", "label": true}
+{"text": "Numero de securite sociale : 2 92 11 33 005 012 44 figure sur le document.", "expected_type": "french_nir", "label": true}
+{"text": "Numero de securite sociale : 1 70 01 13 055 200 58 figure sur le document.", "expected_type": "french_nir", "label": true}
+{"text": "Numero de securite sociale : 2 99 20 69 234 009 57 figure sur le document.", "expected_type": "french_nir", "label": true}
+{"text": "Numero de securite sociale : 1 88 09 44 012 088 63 figure sur le document.", "expected_type": "french_nir", "label": true}
+{"text": "Numero de securite sociale : 2 60 03 59 350 077 67 figure sur le document.", "expected_type": "french_nir", "label": true}
+{"text": "Numero de securite sociale : 1 95 12 92 004 150 08 figure sur le document.", "expected_type": "french_nir", "label": true}
+{"text": "Numero de securite sociale : 2 77 42 13 088 201 09 figure sur le document.", "expected_type": "french_nir", "label": true}
+{"text": "Numero de securite sociale : 1 63 07 97 001 045 04 figure sur le document.", "expected_type": "french_nir", "label": true}
+{"text": "invoice 1980315123456 78", "expected_type": "french_nir", "label": false}
+{"text": "tracking number 2991399123456 12", "expected_type": "french_nir", "label": false}
+{"text": "batch code 1850675115328 70", "expected_type": "french_nir", "label": false}
+{"text": "order ref 1701195512020 99", "expected_type": "french_nir", "label": false}
+{"text": "confirmation 2 96 13 96 234 009 55", "expected_type": "french_nir", "label": false}
+{"text": "shipment 1 05 00 12 345 678 90", "expected_type": "french_nir", "label": false}
+{"text": "case file 1 85 06 99 115 328 69", "expected_type": "french_nir", "label": false}
+{"text": "ledger entry 2 92 42 33 005 012 44", "expected_type": "french_nir", "label": false}
+{"text": "the book ISBN is 978-3-16-148410-0 per the catalog entry", "expected_type": "none", "label": false}
+{"text": "ISBN-10 0-306-40615-2 was used for the legacy edition", "expected_type": "none", "label": false}
+{"text": "request id 550e8400-e29b-41d4-a716-446655440000 traced the failure", "expected_type": "none", "label": false}
+{"text": "session guid 6fa459ea-ee8a-3ca4-894e-db77e160355e was logged", "expected_type": "none", "label": false}
+{"text": "event logged at 2026-07-31T14:23:00Z per the audit trail", "expected_type": "none", "label": false}
+{"text": "deployment finished at 2026-01-05 09:12:44 UTC", "expected_type": "none", "label": false}
+{"text": "the venue is located at 48.8566, 2.3522 near the river", "expected_type": "none", "label": false}
+{"text": "coordinates 37.7749,-122.4194 mark the warehouse entrance", "expected_type": "none", "label": false}
+{"text": "part number PN-4589-2201-XL was out of stock", "expected_type": "none", "label": false}
+{"text": "component code A1-7734-B was replaced under warranty", "expected_type": "none", "label": false}

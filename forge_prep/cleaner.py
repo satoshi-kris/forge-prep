@@ -3,16 +3,13 @@ Corpus Cleaner — deduplicates, scrubs PII, filters low-quality files,
 and outputs a clean, Forge-ready corpus.
 """
 
-import os
-import re
-import json
-import shutil
 import hashlib
-from pathlib import Path
+import os
 from dataclasses import dataclass, field
-from typing import Optional
+from pathlib import Path
 
-from forge_prep.auditor import PII_PATTERNS, SUPPORTED_EXTENSIONS
+from forge_prep import pii
+from forge_prep.auditor import SUPPORTED_EXTENSIONS
 
 
 @dataclass
@@ -46,6 +43,8 @@ class CorpusCleaner:
         min_chars: int = 100,
         min_text_density: float = 0.3,
         max_repetition_ratio: float = 0.5,
+        ip_mode: str = "public",
+        context_denylist: frozenset | None = None,
     ):
         self.input_path = Path(input_path)
         self.output_path = Path(output_path)
@@ -54,6 +53,8 @@ class CorpusCleaner:
         self.min_chars = min_chars
         self.min_text_density = min_text_density
         self.max_repetition_ratio = max_repetition_ratio
+        self.ip_mode = ip_mode
+        self.context_denylist = context_denylist
 
     def clean(self) -> CleaningResult:
         result = CleaningResult()
@@ -100,7 +101,7 @@ class CorpusCleaner:
 
             # --- Deduplication ---
             if self.dedup:
-                content_hash = hashlib.md5(text.encode()).hexdigest()
+                content_hash = hashlib.sha256(text.encode(), usedforsecurity=False).hexdigest()
                 if content_hash in seen_hashes:
                     result.duplicates_removed += 1
                     result.files_removed += 1
@@ -108,9 +109,10 @@ class CorpusCleaner:
                     continue
                 seen_hashes[content_hash] = str(rel)
 
-            # --- PII scrubbing ---
+            # --- PII scrubbing (shared validated detection path with the auditor) ---
             if self.scrub_pii:
-                text, pii_count = self._scrub_pii(text)
+                text, counts = pii.redact(text, ip_mode=self.ip_mode, context_denylist=self.context_denylist)
+                pii_count = sum(counts.values())
                 if pii_count > 0:
                     result.pii_scrubbed_files += 1
                     result.pii_replacements += pii_count
@@ -133,21 +135,3 @@ class CorpusCleaner:
                 if fpath.suffix.lower() in SUPPORTED_EXTENSIONS:
                     files.append(fpath)
         return sorted(files)
-
-    def _scrub_pii(self, text: str) -> tuple[str, int]:
-        total_replacements = 0
-        replacement_map = {
-            "email": "[EMAIL_REDACTED]",
-            "phone_intl": "[PHONE_REDACTED]",
-            "ip_address": "[IP_REDACTED]",
-            "credit_card": "[CC_REDACTED]",
-            "ssn_us": "[SSN_REDACTED]",
-            "iban": "[IBAN_REDACTED]",
-            "french_nir": "[NIR_REDACTED]",
-        }
-        for pii_type, pattern in PII_PATTERNS.items():
-            matches = pattern.findall(text)
-            if matches:
-                total_replacements += len(matches)
-                text = pattern.sub(replacement_map[pii_type], text)
-        return text, total_replacements

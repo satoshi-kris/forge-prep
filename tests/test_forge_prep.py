@@ -4,17 +4,17 @@ Run with: python -m pytest tests/ -v
 Or without pytest: python -m unittest tests/test_forge_prep.py -v
 """
 
-import unittest
-import tempfile
-import os
 import json
+import os
 import shutil
+import tempfile
+import unittest
 from pathlib import Path
 
 from forge_prep.auditor import CorpusAuditor, CorpusAuditResult
 from forge_prep.cleaner import CorpusCleaner
-from forge_prep.scorer import ReadinessScorer
 from forge_prep.report import ReadinessReport
+from forge_prep.scorer import ReadinessScorer
 
 
 class TestCorpusAuditor(unittest.TestCase):
@@ -57,7 +57,7 @@ class TestCorpusAuditor(unittest.TestCase):
         self.assertEqual(result.duplicate_count, 0)
 
     def test_audit_counts_tokens(self):
-        # ~20 words should give ~17 tokens (20 * 0.85)
+        # .txt uses the prose multiplier (1.54); word count here comfortably clears 10 either way
         self._write_file("doc.txt", " ".join(["word"] * 20) + " extra padding to reach minimum character count for the quality threshold check")
         auditor = CorpusAuditor(self.test_dir)
         result = auditor.audit()
@@ -98,9 +98,25 @@ class TestCorpusAuditor(unittest.TestCase):
         file_audit = result.file_audits[0]
         self.assertIn("phone_intl", file_audit.pii_detected)
 
-    def test_detects_ip_address(self):
+    def test_detects_public_ip_address(self):
+        # Public IPs are PII by default; RFC1918/loopback ranges are not
+        # (see test_ignores_private_ip_by_default) since ip_mode defaults to "public".
+        self._write_file("doc.txt", "SSH into the gateway at 8.8.8.8 to access the external network and run diagnostic commands on the server cluster.")
+        auditor = CorpusAuditor(self.test_dir)
+        result = auditor.audit()
+        file_audit = result.file_audits[0]
+        self.assertIn("ip_address", file_audit.pii_detected)
+
+    def test_ignores_private_ip_by_default(self):
         self._write_file("doc.txt", "SSH into the gateway at 192.168.1.100 to access the internal network and run diagnostic commands on the server cluster.")
         auditor = CorpusAuditor(self.test_dir)
+        result = auditor.audit()
+        file_audit = result.file_audits[0]
+        self.assertNotIn("ip_address", file_audit.pii_detected)
+
+    def test_detects_private_ip_with_all_mode(self):
+        self._write_file("doc.txt", "SSH into the gateway at 192.168.1.100 to access the internal network and run diagnostic commands on the server cluster.")
+        auditor = CorpusAuditor(self.test_dir, ip_mode="all")
         result = auditor.audit()
         file_audit = result.file_audits[0]
         self.assertIn("ip_address", file_audit.pii_detected)
@@ -236,7 +252,7 @@ class TestCorpusCleaner(unittest.TestCase):
     def test_clean_scrubs_phone_pii(self):
         self._write_file("doc.txt", "Call us at +33 1 42 68 53 00 for more information about our services and available support packages today.")
         cleaner = CorpusCleaner(self.input_dir, self.output_dir, dedup=False, scrub_pii=True)
-        result = cleaner.clean()
+        cleaner.clean()
         out_text = (Path(self.output_dir) / "doc.txt").read_text()
         self.assertIn("[PHONE_REDACTED]", out_text)
 
@@ -260,7 +276,7 @@ class TestCorpusCleaner(unittest.TestCase):
         self._write_file("docs/guide.txt", "A complete guide with sufficient content for the cleaner to keep it in the output directory structure.")
         self._write_file("data/export.txt", "This is a data export file with enough words per line to pass the sparse lines check in the quality filter pipeline.")
         cleaner = CorpusCleaner(self.input_dir, self.output_dir, dedup=False, scrub_pii=False)
-        result = cleaner.clean()
+        cleaner.clean()
         self.assertTrue((Path(self.output_dir) / "docs" / "guide.txt").exists())
         self.assertTrue((Path(self.output_dir) / "data" / "export.txt").exists())
 

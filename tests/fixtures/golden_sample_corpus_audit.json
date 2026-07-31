@@ -1,0 +1,294 @@
+{
+  "audit": {
+    "duplicate_bytes": 975,
+    "duplicate_count": 1,
+    "file_audits": [
+      {
+        "char_count": 1297,
+        "duplicate_of": null,
+        "encoding": "utf-8",
+        "extension": ".py",
+        "is_duplicate": false,
+        "language": "unknown",
+        "line_count": 41,
+        "path": "code/data_pipeline.py",
+        "pii_detected": [],
+        "pii_scan_truncated": false,
+        "quality_flags": [],
+        "size_bytes": 1299,
+        "token_estimate": 331,
+        "token_estimate_confident": true,
+        "token_estimate_high": 397,
+        "token_estimate_low": 264,
+        "word_count": 124
+      },
+      {
+        "char_count": 507,
+        "duplicate_of": null,
+        "encoding": "utf-8",
+        "extension": ".csv",
+        "is_duplicate": false,
+        "language": "unknown",
+        "line_count": 8,
+        "path": "data/customers.csv",
+        "pii_detected": [
+          "email",
+          "phone_intl"
+        ],
+        "pii_scan_truncated": false,
+        "quality_flags": [],
+        "size_bytes": 507,
+        "token_estimate": 187,
+        "token_estimate_confident": false,
+        "token_estimate_high": 299,
+        "token_estimate_low": 74,
+        "word_count": 38
+      },
+      {
+        "char_count": 3400,
+        "duplicate_of": null,
+        "encoding": "utf-8",
+        "extension": ".txt",
+        "is_duplicate": false,
+        "language": "unknown",
+        "line_count": 101,
+        "path": "data/repetitive_log.txt",
+        "pii_detected": [],
+        "pii_scan_truncated": false,
+        "quality_flags": [
+          "high_repetition"
+        ],
+        "size_bytes": 3400,
+        "token_estimate": 825,
+        "token_estimate_confident": true,
+        "token_estimate_high": 948,
+        "token_estimate_low": 701,
+        "word_count": 600
+      },
+      {
+        "char_count": 776,
+        "duplicate_of": null,
+        "encoding": "utf-8",
+        "extension": ".jsonl",
+        "is_duplicate": false,
+        "language": "unknown",
+        "line_count": 6,
+        "path": "data/sensor_logs.jsonl",
+        "pii_detected": [],
+        "pii_scan_truncated": false,
+        "quality_flags": [
+          "sparse_lines"
+        ],
+        "size_bytes": 776,
+        "token_estimate": 287,
+        "token_estimate_confident": false,
+        "token_estimate_high": 459,
+        "token_estimate_low": 114,
+        "word_count": 5
+      },
+      {
+        "char_count": 1135,
+        "duplicate_of": null,
+        "encoding": "utf-8",
+        "extension": ".txt",
+        "is_duplicate": false,
+        "language": "fr",
+        "line_count": 20,
+        "path": "docs/guide_utilisateur_fr.txt",
+        "pii_detected": [
+          "email",
+          "phone_intl"
+        ],
+        "pii_scan_truncated": false,
+        "quality_flags": [],
+        "size_bytes": 1137,
+        "token_estimate": 275,
+        "token_estimate_confident": true,
+        "token_estimate_high": 316,
+        "token_estimate_low": 233,
+        "word_count": 175
+      },
+      {
+        "char_count": 973,
+        "duplicate_of": null,
+        "encoding": "utf-8",
+        "extension": ".txt",
+        "is_duplicate": false,
+        "language": "en",
+        "line_count": 16,
+        "path": "docs/onboarding_guide.txt",
+        "pii_detected": [
+          "email",
+          "phone_intl"
+        ],
+        "pii_scan_truncated": false,
+        "quality_flags": [],
+        "size_bytes": 975,
+        "token_estimate": 236,
+        "token_estimate_confident": true,
+        "token_estimate_high": 271,
+        "token_estimate_low": 200,
+        "word_count": 143
+      },
+      {
+        "char_count": 973,
+        "duplicate_of": "docs/onboarding_guide.txt",
+        "encoding": "utf-8",
+        "extension": ".txt",
+        "is_duplicate": true,
+        "language": "en",
+        "line_count": 16,
+        "path": "docs/onboarding_guide_backup.txt",
+        "pii_detected": [
+          "email",
+          "phone_intl"
+        ],
+        "pii_scan_truncated": false,
+        "quality_flags": [],
+        "size_bytes": 975,
+        "token_estimate": 236,
+        "token_estimate_confident": true,
+        "token_estimate_high": 271,
+        "token_estimate_low": 200,
+        "word_count": 143
+      },
+      {
+        "char_count": 17,
+        "duplicate_of": null,
+        "encoding": "utf-8",
+        "extension": ".txt",
+        "is_duplicate": false,
+        "language": "unknown",
+        "line_count": 2,
+        "path": "docs/placeholder.txt",
+        "pii_detected": [],
+        "pii_scan_truncated": false,
+        "quality_flags": [
+          "too_short",
+          "sparse_lines"
+        ],
+        "size_bytes": 17,
+        "token_estimate": 4,
+        "token_estimate_confident": true,
+        "token_estimate_high": 4,
+        "token_estimate_low": 3,
+        "word_count": 3
+      },
+      {
+        "char_count": 952,
+        "duplicate_of": null,
+        "encoding": "utf-8",
+        "extension": ".txt",
+        "is_duplicate": false,
+        "language": "en",
+        "line_count": 22,
+        "path": "docs/product_specs.txt",
+        "pii_detected": [
+          "email"
+        ],
+        "pii_scan_truncated": false,
+        "quality_flags": [],
+        "size_bytes": 952,
+        "token_estimate": 231,
+        "token_estimate_confident": true,
+        "token_estimate_high": 265,
+        "token_estimate_low": 196,
+        "word_count": 129
+      },
+      {
+        "char_count": 1079,
+        "duplicate_of": null,
+        "encoding": "utf-8",
+        "extension": ".txt",
+        "is_duplicate": false,
+        "language": "en",
+        "line_count": 27,
+        "path": "emails/support_thread.txt",
+        "pii_detected": [
+          "email",
+          "phone_intl"
+        ],
+        "pii_scan_truncated": false,
+        "quality_flags": [],
+        "size_bytes": 1079,
+        "token_estimate": 261,
+        "token_estimate_confident": true,
+        "token_estimate_high": 300,
+        "token_estimate_low": 221,
+        "word_count": 155
+      }
+    ],
+    "file_type_distribution": {
+      ".csv": 1,
+      ".jsonl": 1,
+      ".py": 1,
+      ".txt": 7
+    },
+    "language_distribution": {
+      "en": 4,
+      "fr": 1,
+      "unknown": 5
+    },
+    "pii_files_count": 6,
+    "quality_issues": {
+      "high_repetition": 1,
+      "sparse_lines": 2,
+      "too_short": 1
+    },
+    "recommendations": [
+      "PII detected in 6 files (60.0%). Run `forge-prep clean` before uploading to Forge.",
+      "1 files have high line repetition. This can degrade model training quality.",
+      "Corpus is only 0.0 MB. For effective Forge pre-training, aim for 1+ GB of clean, deduplicated text.",
+      "Estimated 2,873 tokens. Forge pre-training typically requires 10B+ tokens for domain coverage; fine-tuning can be effective with 100K–10M tokens."
+    ],
+    "tokens_estimate_uncertain": true,
+    "total_files": 10,
+    "total_size_bytes": 11117,
+    "total_tokens_estimate": 2873,
+    "total_tokens_estimate_high": 3530,
+    "total_tokens_estimate_low": 2206
+  },
+  "score": {
+    "dimensions": [
+      {
+        "details": "2,873 tokens (0 MB) — insufficient for any Forge training stage. Token count is a rough estimate (range 2,206–3,530) — some file types in this corpus have >25% measured error; see docs/methodology.md. Score uses the point estimate above unchanged.",
+        "name": "Volume",
+        "score": 10,
+        "weight": 0.25
+      },
+      {
+        "details": "Pervasive quality issues (40% flag rate). Major filtering needed.",
+        "name": "Quality",
+        "score": 20,
+        "weight": 0.25
+      },
+      {
+        "details": "1 duplicates (10.0%) — significant dedup required.",
+        "name": "Deduplication",
+        "score": 45,
+        "weight": 0.15
+      },
+      {
+        "details": "Widespread PII (6 files, 60.0%). Critical: scrub before any training.",
+        "name": "Privacy",
+        "score": 10,
+        "weight": 0.2
+      },
+      {
+        "details": "Bilingual corpus — consider if both languages are needed for your domain.",
+        "name": "Language Focus",
+        "score": 80,
+        "weight": 0.1
+      },
+      {
+        "details": "4 file formats. Consider standardizing to .txt or .jsonl for Forge.",
+        "name": "Format Consistency",
+        "score": 70,
+        "weight": 0.05
+      }
+    ],
+    "forge_recommendation": "Not ready — corpus needs fundamental restructuring before any model training.",
+    "grade": "F",
+    "overall": 27.8
+  }
+}

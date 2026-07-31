@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "forge-prep"
 version = "0.1.0"
-description = "Data readiness toolkit for Mistral Forge — audit, clean, and prepare enterprise data for custom model training."
+description = "Data readiness toolkit for Mistral Forge — audit, clean, and prepare enterprise data for custom model training. forge-prep is an independent open-source project. It is not affiliated with, endorsed by, or sponsored by Mistral AI."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 
 [project.scripts]
@@ -35,21 +36,24 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/kris/forge-prep"
-Repository = "https://github.com/kris/forge-prep"
-Issues = "https://github.com/kris/forge-prep/issues"
-Documentation = "https://github.com/kris/forge-prep#readme"
+Homepage = "https://github.com/satoshi-kris/forge-prep"
+Repository = "https://github.com/satoshi-kris/forge-prep"
+Issues = "https://github.com/satoshi-kris/forge-prep/issues"
+Documentation = "https://github.com/satoshi-kris/forge-prep#readme"
 
 [tool.setuptools.packages.find]
 include = ["forge_prep*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --cov=forge_prep --cov-report=term-missing --cov-fail-under=85"
 
 [tool.ruff]
 target-version = "py310"
-line-length = 120
+# 120 was never actually enforced pre-Phase-1 — natural-language string
+# literals (recommendation text, test fixtures) routinely ran past it.
+# Widened to match reality rather than mass-reformatting unrelated prose.
+line-length = 175
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]

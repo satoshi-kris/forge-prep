@@ -3,7 +3,8 @@ Readiness Scorer — computes a 0–100 "Forge Readiness Score"
 based on corpus audit results, with per-dimension breakdown.
 """
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
+
 from forge_prep.auditor import CorpusAuditResult
 
 
@@ -88,6 +89,13 @@ class ReadinessScorer:
             score = 10
             detail = f"{tokens:,} tokens ({mb:.0f} MB) — insufficient for any Forge training stage."
 
+        if audit.tokens_estimate_uncertain:
+            detail += (
+                f" Token count is a rough estimate (range {audit.total_tokens_estimate_low:,}"
+                f"–{audit.total_tokens_estimate_high:,}) — some file types in this corpus have "
+                f">25% measured error; see docs/methodology.md. Score uses the point estimate above unchanged."
+            )
+
         return DimensionScore(name="Volume", score=score, weight=0.25, details=detail)
 
     def _score_quality(self, audit: CorpusAuditResult) -> DimensionScore:
@@ -159,14 +167,21 @@ class ReadinessScorer:
     def _score_diversity(self, audit: CorpusAuditResult) -> DimensionScore:
         """Score based on language and format diversity (or focus)."""
         langs = audit.language_distribution
-        num_langs = len([l for l in langs if l != "unknown"])
+        num_langs = len([lang for lang in langs if lang != "unknown"])
 
-        if num_langs == 1:
+        if num_langs == 0:
+            score = 50
+            detail = (
+                "Language could not be confidently detected for any file. "
+                "Score reflects low detection confidence, not corpus quality."
+            )
+        elif num_langs == 1:
             score = 90
-            detail = f"Single-language corpus ({list(langs.keys())[0]}) — focused and consistent."
+            known_lang = next(lang for lang in langs if lang != "unknown")
+            detail = f"Single-language corpus ({known_lang}) — focused and consistent."
         elif num_langs == 2:
             score = 80
-            detail = f"Bilingual corpus — consider if both languages are needed for your domain."
+            detail = "Bilingual corpus — consider if both languages are needed for your domain."
         elif num_langs <= 4:
             score = 60
             detail = f"{num_langs} languages detected. Filter to target languages unless multilingual is intentional."
