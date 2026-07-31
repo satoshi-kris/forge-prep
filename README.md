@@ -45,7 +45,7 @@ Reports saved:
   JSON:     forge-prep-output/forge_readiness_report.json
 ```
 
-The scoring weights and grade bands above are heuristics chosen by this project's author, not requirements published by Mistral — see [`docs/methodology.md`](docs/methodology.md) for the full formula and the reasoning behind it, and [`docs/limitations.md`](docs/limitations.md) for what the tool does *not* catch before you rely on it.
+The scoring weights and grade bands above are heuristics chosen by this project's author, not requirements published by Mistral — see [`docs/methodology.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/methodology.md) for the full formula and the reasoning behind it, and [`docs/limitations.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/limitations.md) for what the tool does *not* catch before you rely on it.
 
 ## What It Does
 
@@ -58,10 +58,10 @@ Both commands support `--format {text,json}` and `--quiet` for scripting, and `a
 
 ### Audit Dimensions
 
-- **Volume** — Is there enough data for Forge pre-training vs. fine-tuning? Token counts are estimated from character counts with a per-file-type multiplier, not run through a real tokenizer. For file types where that estimate's held-out error exceeds ±25% (currently CSV/JSONL), the report shows a range instead of a single number — see [`docs/methodology.md`](docs/methodology.md) for exactly how much to trust it.
+- **Volume** — Is there enough data for Forge pre-training vs. fine-tuning? Token counts are estimated from character counts with a per-file-type multiplier, not run through a real tokenizer. For file types where that estimate's held-out error exceeds ±25% (currently CSV/JSONL), the report shows a range instead of a single number — see [`docs/methodology.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/methodology.md) for exactly how much to trust it.
 - **Quality** — Short files, low text density, high repetition, encoding issues
 - **Deduplication** — Exact content duplicates detected via SHA-256 hashing
-- **Privacy** — PII detection across the *entire* file (email, phone, IP, credit card, SSN, IBAN, French NIR), each validated with a checksum or context check to cut down on false positives — see [`docs/limitations.md`](docs/limitations.md) for what it can't see
+- **Privacy** — PII detection across the *entire* file (email, phone, IP, credit card, SSN, IBAN, French NIR), each validated with a checksum or context check to cut down on false positives — see [`docs/limitations.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/limitations.md) for what it can't see
 - **Language Focus** — Multilingual corpus detection with automatic language identification
 - **Format Consistency** — File type distribution and standardization recommendations
 
@@ -88,7 +88,7 @@ The cleaner:
 - Filters files below quality thresholds (too short, low text density, high repetition) — thresholds are configurable via `--min-chars`, `--min-text-density`, and `--max-repetition-ratio`
 - Outputs a clean, Forge-compatible directory structure
 
-Redaction here is **pseudonymisation, not anonymisation** — see [`docs/limitations.md`](docs/limitations.md) before treating cleaned output as safe to share without a lawful basis.
+Redaction here is **pseudonymisation, not anonymisation** — see [`docs/limitations.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/limitations.md) before treating cleaned output as safe to share without a lawful basis.
 
 ## Installation
 
