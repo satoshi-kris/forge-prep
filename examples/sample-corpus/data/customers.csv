@@ -1,0 +1,7 @@
+id,name,email,phone,country,plan,mrr_eur
+1001,Schneider Electric,contact@se.com,+33 4 76 57 60 60,France,enterprise,45000
+1002,Siemens AG,info@siemens.de,+49 89 636 00,Germany,enterprise,62000
+1003,ABB Ltd,info@abb.com,+41 43 317 71 11,Switzerland,professional,28000
+1004,Bosch Rexroth,sales@boschrexroth.de,+49 9352 18 0,Germany,enterprise,51000
+1005,Schneider Electric,contact@se.com,+33 4 76 57 60 60,France,enterprise,45000
+1006,Legrand SA,contact@legrand.fr,+33 5 55 06 87 87,France,professional,19000

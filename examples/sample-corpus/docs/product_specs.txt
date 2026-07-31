@@ -1,0 +1,21 @@
+Product Specification: AcmeWidget v3.2
+
+1. Overview
+AcmeWidget is our flagship IoT sensor platform deployed across 2,400+ manufacturing facilities in Europe. The v3.2 release adds predictive maintenance capabilities powered by on-device ML inference.
+
+2. Technical Architecture
+Edge Processing: ARM Cortex-M7 at 480MHz with 1MB SRAM
+Connectivity: LoRaWAN, NB-IoT, WiFi 6
+Inference Engine: TensorFlow Lite Micro (quantized INT8)
+Data Pipeline: MQTT to Kafka to Snowflake with dbt transformations
+
+3. ML Model Specifications
+The predictive maintenance model uses a 1D CNN trained on 18 months of vibration data from 340 facilities. Current accuracy: 94.2 percent (precision: 91.8, recall: 96.1). Model size: 142KB quantized.
+
+4. Deployment Schedule
+Beta: March 2026 at 50 facilities in France and Germany
+General Availability: June 2026 for all EU facilities
+
+5. Contact
+Technical lead: jean.dupont@acmecorp.com
+Product owner: marie.lambert@acmecorp.com

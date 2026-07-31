@@ -1,0 +1,26 @@
+From: thomas.weber@siemens.de
+To: support@acmecorp.com
+Date: 2026-03-10 09:14 CET
+Subject: AcmeWidget firmware update failure
+
+Hello, we are experiencing issues with the OTA firmware update on 12 sensors at our Munich-Ost facility. The update process starts but fails at 73 percent with error code AW-ERR-4012. Our facility manager Hans Mueller (phone: +49 170 123 4567) has been troubleshooting since Friday.
+
+Could you please escalate this? Our SLA requires resolution within 24 hours.
+
+Best regards,
+Thomas Weber
+IoT Operations Lead, Siemens AG
+
+---
+
+From: support@acmecorp.com
+To: thomas.weber@siemens.de
+Date: 2026-03-10 10:02 CET
+
+Hi Thomas, thank you for reporting this. Error AW-ERR-4012 indicates a checksum mismatch during the delta update process. This is a known issue affecting sensors with firmware versions below 3.1.8.
+
+Workaround: Please perform a full firmware flash instead of delta update.
+1. SSH into the gateway at 192.168.1.100
+2. Run: acme-cli flash --full --target AW-DE-0108
+
+We are releasing a patch next week. Ticket ID: SUP-2026-04821, Priority: P1.

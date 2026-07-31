@@ -1,0 +1,5 @@
+{"timestamp":"2026-03-15T08:32:11Z","sensor_id":"AW-FR-0042","facility":"Lyon-Nord","metric":"vibration_rms","value":2.34,"unit":"mm/s","status":"normal"}
+{"timestamp":"2026-03-15T08:32:12Z","sensor_id":"AW-FR-0042","facility":"Lyon-Nord","metric":"temperature","value":67.8,"unit":"celsius","status":"normal"}
+{"timestamp":"2026-03-15T08:32:13Z","sensor_id":"AW-FR-0043","facility":"Lyon-Nord","metric":"vibration_rms","value":8.91,"unit":"mm/s","status":"alert"}
+{"timestamp":"2026-03-15T08:32:14Z","sensor_id":"AW-DE-0108","facility":"Munich-Ost","metric":"vibration_rms","value":1.12,"unit":"mm/s","status":"normal"}
+{"timestamp":"2026-03-15T08:32:15Z","sensor_id":"AW-DE-0108","facility":"Munich-Ost","metric":"power_draw","value":342.5,"unit":"watts","status":"normal"}

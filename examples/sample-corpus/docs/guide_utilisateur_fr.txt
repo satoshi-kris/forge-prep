@@ -1,0 +1,19 @@
+Guide Utilisateur — Plateforme AcmeCloud
+
+1. Introduction
+Bienvenue sur AcmeCloud, notre plateforme de gestion des donnees industrielles. Ce guide vous accompagne dans la prise en main de l outil.
+
+2. Connexion
+Rendez-vous sur le portail et connectez-vous avec vos identifiants. En cas de probleme, contactez le support technique a support@acmecorp.com ou au +33 1 55 43 22 10.
+
+3. Tableau de Bord
+Le tableau de bord principal affiche les metriques cles de vos installations : taux de disponibilite, alertes en cours, et previsions de maintenance. Vous pouvez personnaliser les widgets selon vos besoins.
+
+4. Gestion des Capteurs
+Chaque capteur AcmeWidget est identifie par un numero de serie unique. Pour ajouter un nouveau capteur, cliquez sur Ajouter et scannez le QR code situe sur l appareil. La synchronisation prend environ 5 minutes.
+
+5. Rapports
+Les rapports sont generes automatiquement chaque lundi. Vous pouvez exporter les donnees au format CSV ou PDF.
+
+6. Securite
+Vos donnees sont hebergees en France conformement au RGPD. Pour toute question relative a la protection des donnees contactez notre DPO a dpo@acmecorp.com.

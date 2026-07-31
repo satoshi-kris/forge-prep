@@ -1,0 +1,15 @@
+Employee Onboarding Guide — Acme Corp
+
+Welcome to Acme Corp! This guide will help you get started with our tools, processes, and culture.
+
+Chapter 1: Getting Started
+Your first week at Acme will include orientation sessions, team introductions, and access setup. Please bring your government-issued ID and any relevant certifications.
+
+Chapter 2: Tools and Systems
+We use Jira for project tracking, Confluence for documentation, and Slack for daily communication. All code is managed through GitLab, and deployments are handled via our internal CI/CD pipeline called AcmeDeploy.
+
+Chapter 3: Security Policies
+All employees must complete security training within their first two weeks. Never share your credentials. Report any suspicious activity to security@acmecorp.com. For emergencies, call +33 1 42 68 53 00.
+
+Chapter 4: Benefits
+Contact HR at hr@acmecorp.com or visit the internal portal. Your employee number (format: ACM-XXXXX) is required for all benefit requests.

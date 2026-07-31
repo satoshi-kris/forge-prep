@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forge-prep"
+version = "0.1.0"
+description = "Data readiness toolkit for Mistral Forge — audit, clean, and prepare enterprise data for custom model training."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    {name = "Kris"}
+]
+keywords = ["mistral", "forge", "data-quality", "llm", "enterprise-ai", "data-engineering"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.scripts]
+forge-prep = "forge_prep.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "build>=1.0",
+    "twine>=5.0",
+    "ruff>=0.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/kris/forge-prep"
+Repository = "https://github.com/kris/forge-prep"
+Issues = "https://github.com/kris/forge-prep/issues"
+Documentation = "https://github.com/kris/forge-prep#readme"
+
+[tool.setuptools.packages.find]
+include = ["forge_prep*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
