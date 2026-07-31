@@ -67,19 +67,25 @@ class CorpusCleaner:
             result.files_processed += 1
             result.bytes_before += fpath.stat().st_size
 
+            # rel stays a Path — used below for the actual filesystem write,
+            # which must use the platform's native separators. rel_str is the
+            # forward-slash form used anywhere a path is recorded as text
+            # (actions_log, dedup lookups), so logs/output are identical
+            # across platforms regardless of what OS produced them.
+            rel = fpath.relative_to(self.input_path)
+            rel_str = rel.as_posix()
+
             try:
                 text = fpath.read_text(encoding="utf-8", errors="replace")
             except Exception:
                 result.files_removed += 1
-                result.actions_log.append(f"SKIP (unreadable): {fpath}")
+                result.actions_log.append(f"SKIP (unreadable): {rel_str}")
                 continue
-
-            rel = fpath.relative_to(self.input_path)
 
             # --- Quality filter ---
             if len(text) < self.min_chars:
                 result.files_removed += 1
-                result.actions_log.append(f"SKIP (too short: {len(text)} chars): {rel}")
+                result.actions_log.append(f"SKIP (too short: {len(text)} chars): {rel_str}")
                 continue
 
             sample = text[:10_000]
@@ -87,7 +93,7 @@ class CorpusCleaner:
                 alpha_ratio = sum(c.isalpha() for c in sample) / len(sample)
                 if alpha_ratio < self.min_text_density:
                     result.files_removed += 1
-                    result.actions_log.append(f"SKIP (low text density: {alpha_ratio:.2f}): {rel}")
+                    result.actions_log.append(f"SKIP (low text density: {alpha_ratio:.2f}): {rel_str}")
                     continue
 
             # Repetition check
@@ -96,7 +102,7 @@ class CorpusCleaner:
                 unique_ratio = len(set(lines)) / len(lines)
                 if unique_ratio < self.max_repetition_ratio:
                     result.files_removed += 1
-                    result.actions_log.append(f"SKIP (high repetition: {unique_ratio:.2f}): {rel}")
+                    result.actions_log.append(f"SKIP (high repetition: {unique_ratio:.2f}): {rel_str}")
                     continue
 
             # --- Deduplication ---
@@ -105,9 +111,9 @@ class CorpusCleaner:
                 if content_hash in seen_hashes:
                     result.duplicates_removed += 1
                     result.files_removed += 1
-                    result.actions_log.append(f"DEDUP (duplicate of {seen_hashes[content_hash]}): {rel}")
+                    result.actions_log.append(f"DEDUP (duplicate of {seen_hashes[content_hash]}): {rel_str}")
                     continue
-                seen_hashes[content_hash] = str(rel)
+                seen_hashes[content_hash] = rel_str
 
             # --- PII scrubbing (shared validated detection path with the auditor) ---
             if self.scrub_pii:
@@ -116,7 +122,7 @@ class CorpusCleaner:
                 if pii_count > 0:
                     result.pii_scrubbed_files += 1
                     result.pii_replacements += pii_count
-                    result.actions_log.append(f"PII_SCRUB ({pii_count} replacements): {rel}")
+                    result.actions_log.append(f"PII_SCRUB ({pii_count} replacements): {rel_str}")
 
             # --- Write clean file ---
             out_file = self.output_path / rel

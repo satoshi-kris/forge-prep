@@ -271,5 +271,89 @@ class TestGoldenSampleCorpusAudit(unittest.TestCase):
             shutil.rmtree(output_dir, ignore_errors=True)
 
 
+class TestAuditPathsArePlatformIndependent(unittest.TestCase):
+    """
+    Path.relative_to(...) yields OS-native separators — backslashes on
+    Windows. auditor.py must use .as_posix() everywhere a path is recorded
+    as a string, so a report produced on Windows is byte-identical (for
+    path fields) to one produced on Linux/macOS and can be consumed by
+    tooling on any platform.
+    """
+
+    def test_sample_corpus_audit_json_has_no_backslashes(self):
+        output_dir = tempfile.mkdtemp()
+        try:
+            code, out, err = run_cli(["audit", str(SAMPLE_CORPUS), "--output", output_dir, "--format", "json"])
+            self.assertEqual(code, 0, err)
+            data = json.loads(out)
+            for file_audit in data["audit"]["file_audits"]:
+                self.assertNotIn("\\", file_audit["path"], f"backslash in path: {file_audit['path']!r}")
+                if file_audit["duplicate_of"]:
+                    self.assertNotIn(
+                        "\\", file_audit["duplicate_of"],
+                        f"backslash in duplicate_of: {file_audit['duplicate_of']!r}",
+                    )
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
+    def test_nested_file_path_uses_forward_slash(self):
+        from forge_prep.auditor import CorpusAuditor
+
+        input_dir = tempfile.mkdtemp()
+        try:
+            nested = Path(input_dir) / "sub" / "dir" / "doc.txt"
+            nested.parent.mkdir(parents=True)
+            nested.write_text(
+                "A nested document with enough content to clear the minimum character threshold for quality checks.",
+                encoding="utf-8",
+            )
+            result = CorpusAuditor(input_dir).audit()
+            self.assertEqual(result.file_audits[0].path, "sub/dir/doc.txt")
+            self.assertNotIn("\\", result.file_audits[0].path)
+        finally:
+            shutil.rmtree(input_dir, ignore_errors=True)
+
+    def test_duplicate_of_uses_forward_slash(self):
+        from forge_prep.auditor import CorpusAuditor
+
+        input_dir = tempfile.mkdtemp()
+        try:
+            content = "Duplicate content nested in a subdirectory, long enough to clear the quality threshold checks."
+            # "sub/original.txt" must sort before "zzz_copy.txt" (files are
+            # processed in sorted order) so the nested file is the one
+            # recorded as duplicate_of, exercising the .as_posix() path.
+            first = Path(input_dir) / "sub" / "original.txt"
+            second = Path(input_dir) / "zzz_copy.txt"
+            first.parent.mkdir(parents=True)
+            first.write_text(content, encoding="utf-8")
+            second.write_text(content, encoding="utf-8")
+
+            result = CorpusAuditor(input_dir).audit()
+            dup = next(fa for fa in result.file_audits if fa.is_duplicate)
+            self.assertEqual(dup.duplicate_of, "sub/original.txt")
+            self.assertNotIn("\\", dup.duplicate_of)
+        finally:
+            shutil.rmtree(input_dir, ignore_errors=True)
+
+    def test_cleaner_actions_log_uses_forward_slash(self):
+        from forge_prep.cleaner import CorpusCleaner
+
+        input_dir = tempfile.mkdtemp()
+        output_dir = tempfile.mkdtemp()
+        shutil.rmtree(output_dir)
+        try:
+            nested = Path(input_dir) / "sub" / "tiny.txt"
+            nested.parent.mkdir(parents=True)
+            nested.write_text("x", encoding="utf-8")  # too short, triggers a SKIP log line
+
+            result = CorpusCleaner(input_dir, output_dir).clean()
+            self.assertTrue(result.actions_log)
+            for entry in result.actions_log:
+                self.assertNotIn("\\", entry, f"backslash in actions_log entry: {entry!r}")
+        finally:
+            shutil.rmtree(input_dir, ignore_errors=True)
+            shutil.rmtree(output_dir, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()

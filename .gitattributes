@@ -1,0 +1,15 @@
+# Force LF line endings in the working tree for every text file, on every
+# platform, regardless of core.autocrlf.
+#
+# Why this matters specifically for this project: forge-prep's tests pin
+# exact byte counts, SHA-256 content hashes, and a golden JSON snapshot
+# (tests/fixtures/golden_sample_corpus_audit.json) against the files in
+# examples/sample-corpus/ and tests/fixtures/. Without this file, Windows
+# runners check out with autocrlf=true and every LF becomes CRLF — one
+# extra byte per line. That silently changes size_bytes, char_count,
+# token_estimate, and every content hash the auditor computes, and fails
+# the golden-snapshot test even though nothing about the tool's behavior
+# actually changed. `text=auto` still lets Git auto-detect genuinely binary
+# files (there are none of consequence in this repo today) and leave them
+# alone; `eol=lf` is what actually forces the working-tree normalization.
+* text=auto eol=lf

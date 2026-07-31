@@ -200,7 +200,10 @@ class CorpusAuditor:
     def _audit_file(self, fpath: Path) -> FileAudit:
         stat = fpath.stat()
         audit = FileAudit(
-            path=str(fpath.relative_to(self.corpus_path)),
+            # .as_posix() (not str()) so paths are forward-slash on every
+            # platform — a report produced on Windows must be consumable by
+            # a Linux dashboard or CI job matching on these path strings.
+            path=fpath.relative_to(self.corpus_path).as_posix(),
             size_bytes=stat.st_size,
             extension=fpath.suffix.lower(),
         )
@@ -231,7 +234,7 @@ class CorpusAuditor:
             audit.is_duplicate = True
             audit.duplicate_of = self._hashes[content_hash]
         else:
-            self._hashes[content_hash] = str(fpath.relative_to(self.corpus_path))
+            self._hashes[content_hash] = fpath.relative_to(self.corpus_path).as_posix()
 
         # --- Language detection ---
         sample_words = [w.lower().strip(".,;:!?\"'()") for w in words[:self.sample_size]]
