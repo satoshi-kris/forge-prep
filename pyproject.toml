@@ -54,6 +54,10 @@ target-version = "py310"
 # literals (recommendation text, test fixtures) routinely ran past it.
 # Widened to match reality rather than mass-reformatting unrelated prose.
 line-length = 175
+# examples/sample-corpus and the token holdout set are deliberately messy
+# *input data* for the tool to audit, not source code. Linting them would
+# force us to clean the very defects the fixtures exist to demonstrate.
+extend-exclude = ["examples/", "tests/fixtures/token_holdout/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
