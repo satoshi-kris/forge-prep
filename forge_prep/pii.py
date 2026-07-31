@@ -46,8 +46,98 @@ IBAN_LENGTHS = {
     "FR": 27, "DE": 22, "ES": 24, "IT": 27, "NL": 18, "BE": 16, "GB": 22,
 }
 
+# Published test/demo card numbers from payment processor documentation
+# (Stripe's testing docs, Visa/Mastercard/Amex/Discover demo numbers
+# reproduced across processor developer docs, PayPal sandbox card numbers,
+# Adyen test card numbers). These show up constantly in real codebases —
+# READMEs, integration tests, example .env files — and are never
+# cardholder data. Luhn alone does not reject them, because they're
+# deliberately constructed to *pass* Luhn so they behave like real cards
+# in a test environment.
+KNOWN_TEST_CARD_NUMBERS = frozenset({
+    # Stripe
+    "4242424242424242", "4000056655665556", "4000002760003184",
+    "4000002500003155", "4000000000003220", "4000000000003063",
+    "4000000000009995", "4000000000009987", "4000000000009979",
+    "4000000000000002", "4000000000000069", "4000000000000127",
+    "4000000000000119", "4000000000003184", "2223003122003222",
+    "5200828282828210", "3530111333300000", "3566002020360505",
+    "6200000000000005",
+    # Visa
+    "4111111111111111", "4012888888881881", "4222222222222",
+    "4012000033330026", "4012000077777777",
+    # Mastercard
+    "5555555555554444", "5105105105105100", "5424000000000015",
+    # American Express
+    "378282246310005", "371449635398431", "378734493671000",
+    # Discover
+    "6011111111111117", "6011000990139424",
+    # PayPal sandbox — https://developer.paypal.com/tools/sandbox/card-testing/
+    "4032039403200393", "5425233430109903", "373641846941295",
+    # Adyen test cards
+    "5555444433331111", "370000000000002", "36006666333344",
+})
+
+# Paths that indicate machine-generated or third-party content (minified
+# JS, source maps, vendored/compiled output) where dense numeric constants
+# are expected and not worth flagging as PII by default.
+MACHINE_PATH_MARKERS = ("dist/", "compiled/", "vendor/", "node_modules/", ".min.js", ".map")
+
+_UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
 
 # --- Validators ---
+
+def is_low_entropy_digits(digits: str) -> bool:
+    """
+    True for digit sequences that are never real card/SSN numbers: fewer
+    than 4 distinct digits (this alone also covers a single repeated
+    digit, e.g. "0000000000000000"), or a strictly ascending/descending
+    run such as "0123456789012345" or "9876543210987654" (digits wrap
+    mod 10, since padding/placeholder sequences commonly do).
+    """
+    if len(set(digits)) < 4:
+        return True
+    diffs = [(int(digits[i + 1]) - int(digits[i])) % 10 for i in range(len(digits) - 1)]
+    if all(d == 1 for d in diffs) or all(d == 9 for d in diffs):
+        return True
+    return False
+
+
+def _looks_like_machine_path(file_path) -> bool:
+    if file_path is None:
+        return False
+    normalized = str(file_path).replace("\\", "/").lower()
+    return any(marker in normalized for marker in MACHINE_PATH_MARKERS)
+
+
+def _low_whitespace_context(text: str, start: int, end: int, window: int = 100) -> bool:
+    """True if the ~200 chars around a match look like minified code, a
+    source map, or a base64 blob rather than prose or normal source."""
+    ctx = text[max(0, start - window):end + window]
+    if not ctx:
+        return False
+    return (sum(1 for ch in ctx if ch.isspace()) / len(ctx)) < 0.05
+
+
+def _breaks_complete_token(text: str, start: int, end: int) -> bool:
+    """
+    True if the match is not a standalone token: it's immediately touching
+    a hex letter (meaning it's actually a substring of a longer hex/UUID
+    value), or it's touching a dash and the surrounding text is
+    UUID/GUID-shaped (catches PANs "matched" inside a null GUID like
+    00000000-0000-0000-0000-000000000000).
+    """
+    before = text[start - 1:start]
+    after = text[end:end + 1]
+    if before.lower() in "abcdef" or after.lower() in "abcdef":
+        return True
+    if before == "-" or after == "-":
+        window = text[max(0, start - 40):end + 40]
+        if _UUID_RE.search(window):
+            return True
+    return False
+
 
 def luhn_check(digits: str) -> bool:
     """Standard Luhn/mod-10 checksum used by payment card numbers."""
@@ -136,17 +226,61 @@ def _has_denylisted_context(text: str, start: int, denylist: frozenset) -> bool:
     return any(w in denylist for w in words[-3:])
 
 
-def _validate_match(pii_type: str, match: re.Match, text: str, ip_mode: str, denylist: frozenset) -> bool:
+def validate_credit_card(
+    matched: str,
+    text: str,
+    start: int,
+    end: int,
+    file_path=None,
+    strict_pii: bool = False,
+) -> bool:
+    """
+    A candidate 16-digit run is only reported as a card number if it
+    passes *all* of: not a published test PAN, Luhn-valid, not a
+    low-entropy/placeholder sequence, a complete token (not a substring of
+    a longer hex/GUID value), and — unless --strict-pii — not sitting
+    inside minified/vendored/compiled content where dense numeric
+    constants are the norm rather than the exception.
+    """
+    digits = re.sub(r"\D", "", matched)
+    if digits in KNOWN_TEST_CARD_NUMBERS:
+        return False
+    if not luhn_check(digits):
+        return False
+    if is_low_entropy_digits(digits):
+        return False
+    if _breaks_complete_token(text, start, end):
+        return False
+    if not strict_pii:
+        if _looks_like_machine_path(file_path) or _low_whitespace_context(text, start, end):
+            return False
+    return True
+
+
+def _validate_match(
+    pii_type: str,
+    match: re.Match,
+    text: str,
+    ip_mode: str,
+    denylist: frozenset,
+    file_path=None,
+    strict_pii: bool = False,
+) -> bool:
     matched = match.group(0)
     if pii_type == "credit_card":
-        return luhn_check(re.sub(r"\D", "", matched))
+        return validate_credit_card(matched, text, match.start(), match.end(), file_path, strict_pii)
     if pii_type == "iban":
         return validate_iban(matched)
     if pii_type == "french_nir":
         return validate_french_nir(re.sub(r"\D", "", matched))
     if pii_type == "ip_address":
         return validate_ip(matched, text[match.end():match.end() + 2], ip_mode)
-    if pii_type in ("ssn_us", "phone_intl"):
+    if pii_type == "ssn_us":
+        digits = re.sub(r"\D", "", matched)
+        if is_low_entropy_digits(digits):
+            return False
+        return not _has_denylisted_context(text, match.start(), denylist)
+    if pii_type == "phone_intl":
         return not _has_denylisted_context(text, match.start(), denylist)
     return True  # email needs no extra validation
 
@@ -155,6 +289,8 @@ def scan_text(
     text: str,
     ip_mode: str = "public",
     context_denylist: frozenset | None = None,
+    file_path=None,
+    strict_pii: bool = False,
 ) -> dict:
     """Scan a string and return {pii_type: [(start, end), ...]} for validated matches."""
     if ip_mode not in IP_MODES:
@@ -167,7 +303,7 @@ def scan_text(
         matches = [
             (m.start(), m.end())
             for m in pattern.finditer(text)
-            if _validate_match(pii_type, m, text, ip_mode, denylist)
+            if _validate_match(pii_type, m, text, ip_mode, denylist, file_path, strict_pii)
         ]
         if matches:
             found[pii_type] = matches
@@ -178,9 +314,11 @@ def redact(
     text: str,
     ip_mode: str = "public",
     context_denylist: frozenset | None = None,
+    file_path=None,
+    strict_pii: bool = False,
 ) -> tuple:
     """Return (redacted_text, {pii_type: replacement_count})."""
-    found = scan_text(text, ip_mode=ip_mode, context_denylist=context_denylist)
+    found = scan_text(text, ip_mode=ip_mode, context_denylist=context_denylist, file_path=file_path, strict_pii=strict_pii)
     spans = sorted(
         ((start, end, pii_type) for pii_type, matches in found.items() for start, end in matches),
         key=lambda x: x[0],
@@ -206,6 +344,7 @@ def scan_file_chunked(
     scan_limit: int = 0,
     ip_mode: str = "public",
     context_denylist: frozenset | None = None,
+    strict_pii: bool = False,
 ) -> tuple:
     """
     Scan a file for PII in overlapping chunks without loading the whole
@@ -235,7 +374,10 @@ def scan_file_chunked(
             consumed += len(chunk)
 
             search_text = carry + chunk
-            matches = scan_text(search_text, ip_mode=ip_mode, context_denylist=context_denylist)
+            matches = scan_text(
+                search_text, ip_mode=ip_mode, context_denylist=context_denylist,
+                file_path=fpath, strict_pii=strict_pii,
+            )
             found_types.update(matches.keys())
 
             carry = search_text[-overlap:] if overlap else ""

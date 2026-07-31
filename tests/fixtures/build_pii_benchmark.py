@@ -135,10 +135,13 @@ def main():
     ]:
         neg(text, "ip_address")
 
-    # --- credit_card: true positives (Luhn-valid) ---
+    # --- credit_card: true positives (Luhn-valid, NOT a published test PAN,
+    # NOT low-entropy — a real cardholder PAN looks like these, not like
+    # 4111111111111111, which is Stripe/Visa's own documented test card and
+    # is correctly rejected by the KNOWN_TEST_CARD_NUMBERS denylist) ---
     for prefix in [
-        "411111111111111", "550000555555555", "601100000000000", "401288888888188",
-        "510510510510510", "453211223344556", "453298761234567", "601160116011601", "400000000000000",
+        "601100000000000", "453211223344556", "453298761234567", "601160116011601",
+        "441199223344556", "453277881122334", "601199887766554", "453266778899001", "400511223344556",
     ]:
         card = luhn_valid_number(prefix)
         formatted = " ".join(card[i:i + 4] for i in range(0, 16, 4))
@@ -158,9 +161,56 @@ def main():
     ]:
         neg(text, "credit_card")
 
+    # --- credit_card: hard negatives verified against a real corpus
+    # (a full clone of vercel/next.js) — every one of these is a false
+    # positive the pre-1.3 detector actually produced on real-world code. ---
+    for text in [
+        # published Stripe test cards, as they actually appear in READMEs/docs
+        "Use test card 4242 4242 4242 4242 with any future expiry date to simulate a successful charge.",
+        "For 3D Secure testing, use card number 4000 0027 6000 3184 which requires authentication.",
+        # JS numeric constants (2^52, 2^53 / Number.MAX_SAFE_INTEGER + 1)
+        "const MAX_SAFE_INT_PLUS_ONE = 9007199254740992; // Number.MAX_SAFE_INTEGER + 1",
+        "var LARGEST_SAFE_DOUBLE = 4503599627370496; // 2^52, used by the bignum shim",
+        # a run of zeros in a padding array
+        "const PADDING = [0000000000000000, 0000000000000000, 0000000000000000];",
+        # a null GUID (the 16-digit run inside it is not a PAN)
+        "const NULL_ID = '00000000-0000-0000-0000-000000000000';",
+        "default_uuid: 00000000-0000-0000-0000-000000000000,",
+    ]:
+        neg(text, "credit_card")
+
+    # --- credit_card: hard negatives from real minified JS, source maps,
+    # UUIDs, git SHAs, and numeric constants (drawn from patterns observed
+    # in a real next.js clone during the 0.1.1 remediation) ---
+    for text in [
+        "!function(e){var t=1732584193,n=4023233417,r=2562383102,i=271733878;e.exports=function(a){return t^n^r^i}}();",
+        "sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbIndlYnBhY2s6Ly8vc3JjL2luZGV4LnRzIl19",
+        "//# sourceMappingURL=chunk.8f3a9c21b7e4d6f0.js.map",
+        "commit a1b2c3d4e5f60718293a4b5c6d7e8f9012345678 fixes the regression from last week's release.",
+        "git rev-parse HEAD returned 9f8e7d6c5b4a39281706f5e4d3c2b1a0f9e8d7c6 for the failing build.",
+        "resource id: 550e8400-e29b-41d4-a716-446655440000-v2-cache-key",
+        "hash: 3f2504e0-4f89-11d3-9a0c-0305e82c3301 (namespace UUID, RFC 4122)",
+        "const FNV_OFFSET_BASIS = 14695981039346656037n; // FNV-1a 64-bit constant",
+        "0x1234567890ABCDEF1234567890ABCDEF is the raw memory address logged by the profiler.",
+        "var CRC_TABLE_ENTRY_42 = 0xEDB88320CCCCCCCC; // precomputed CRC32 polynomial table entry",
+        "webpackChunkName: 1234567890123456_vendors-node_modules_react-dom_client_js",
+        "!function(t){function e(r){if(n[r])return n[r].exports;var i=n[r]={i:r,l:!1,exports:{}};return t[r].call(i.exports,i,i.exports,e),i.l=!0,i.exports}var n={};",
+        "base64: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "instance_id=8894477610358384728&session=1234567890123456&build=production",
+        "phone hash lookup returned bucket 1234567890123456 during the sharding test.",
+        "the object's internal id is 0x0000000000000000 before initialization completes.",
+        "timestamp_ns: 1706745600000000000 recorded at the start of the trace span.",
+        "test fixture literal: 1000000000000000 (10^15, used to test bignum overflow handling).",
+        "memory offset 0xDEADBEEFCAFEBABE marks the start of the guard page.",
+        "checksum 0000111122223333 did not match the expected value in the corrupted archive test.",
+        "release tag build_number: 2024010100000001 was superseded by the next nightly.",
+        "the array [1111111111111111, 2222222222222222] holds two sentinel values for the parser.",
+    ]:
+        neg(text, "credit_card")
+
     # --- ssn_us: true positives ---
     for text in [
-        "Please update her file — SSN 234-56-7890 needs verification.",
+        "Please update her file — SSN 246-53-8790 needs verification.",
         "The applicant provided 555-01-2345 as their social security number.",
         "Employee record shows 402-88-1234 on the tax form.",
         "His social security number, 118-45-6789, was on the document.",

@@ -2,6 +2,36 @@
 
 All notable changes to forge-prep will be documented in this file.
 
+## [0.1.1] — 2026-08-01
+
+Bug-fix release. Findings below came from running the published 0.1.0 wheel against a full clone of `vercel/next.js` (19,306 supported files scanned, 90.2 MB, ~21s on this machine) — verified, not hypothetical. Every finding was reproduced against the real files in that corpus before being fixed, and re-verified against the same corpus after.
+
+### Fixed
+- **A corpus with zero supported files no longer produces a fake score.** `forge-prep audit ./next.js/docs/` on 443 `.mdx` files (unsupported at the time) matched zero files and still printed `12.0/100 Grade: F` — a false statement about the data, not an assessment of it. Zero-supported-file corpora (including a directory of only unsupported extensions, or a directory with no files at all) now print a distinct message — files present, files skipped, top 5 unsupported extensions, and the list of extensions that *are* supported — and exit with code `3` (distinct from `0` success and `1` for a nonexistent path or `--fail-under` failure). JSON output is `{"status": "no_supported_files", "score": null, ...}`; `score` is `null`, never a number, whenever nothing was actually assessed. Applies to both `audit` and `clean`.
+- **`credit_card` detection fixed against real-world false positives.** All 7 matches found on the next.js corpus were false positives: two of Stripe's own published test cards (in a README), two JS numeric constants (`2^52`, `2^53` in a compiled crypto library), a run of zeros in a padding array, and a fragment of a null GUID. Luhn alone doesn't reject these — it only rejects ~90% of random digit strings, zeros sum to zero under Luhn, and the null-GUID case was the regex matching *inside* a longer structured token. Four independent checks now apply: a denylist of ~45 published test card numbers (Stripe/Visa/Mastercard/Amex/Discover/PayPal/Adyen), rejection of low-entropy digit sequences (fewer than 4 distinct digits, or a strictly ascending/descending run), a complete-token requirement (rejects matches touching a hex digit or sitting inside a UUID-shaped context), and — opt out with `--strict-pii` — suppression of matches inside dense/minified content or `dist/`/`compiled/`/`vendor/`/`node_modules/`/`.min.js`/`.map` paths. Re-run against the same next.js corpus: **0 credit-card false positives**, with or without `--strict-pii`. `is_low_entropy_digits` was also applied to `ssn_us` (no checksum exists for SSNs, so placeholder sequences like `000-00-0000` needed a separate filter); considered but *not* applied to `iban`/`french_nir`, whose checksums already have a ~1% false-accept rate — see `docs/methodology.md` for the reasoning.
+
+### Added
+- Extensions: `.mdx`, `.adoc`, `.org`, `.toml`, `.ini`, `.cfg` (`.rst`, `.tex`, `.log`, `.tsv` were already supported). `.mdx` alone accounts for the entire next.js `docs/` false-empty-scan finding above.
+- `--include-ext` / `--exclude-ext` (comma-separated, both `audit` and `clean`) so a missing format doesn't require waiting on a release.
+- `--strict-pii` to disable machine-content suppression for `credit_card` detection.
+- A `Skipped:` line in the CLI summary and `files_skipped_by_reason` (`unsupported_extension`/`oversized`/`unreadable`) plus `skipped_extensions` in JSON output — previously ~78,000 files skipped on the next.js run were reported nowhere. (`oversized` is present in the schema now but stays 0 — no file-size cap exists yet.)
+- `tests/test_pii_credit_card_fixes.py` — unit tests for the denylist, low-entropy, complete-token, and machine-content-suppression logic.
+- `docs/limitations.md`: "Known false positive classes" section documenting exactly what's suppressed and why.
+
+### Changed
+- `tests/fixtures/pii_benchmark.jsonl` grew from 125 to 154 lines: all 6 next.js false positives added as labeled negatives, plus 22 more hard negatives from realistic minified JS, source maps, UUIDs, git SHAs, and numeric constants. One original `ssn_us` "true positive" (`234-56-7890`) turned out to be an accidental ascending-digit run and is now correctly rejected by the new entropy check — fixed in the benchmark, not loosened in the detector, since a real SSN being perfectly sequential is far less likely than it being a placeholder. Measured precision/recall on the (larger, harder) benchmark: still 1.00/1.00 across all 7 types. **The gap between that number and the next.js findings is stated explicitly in `docs/methodology.md`** — `credit_card` was already 1.00/1.00 against the synthetic benchmark before this release, and it still had 7 real false positives; a perfect synthetic score is not evidence of real-world precision.
+- Test suite: 87 → 131 tests.
+
+### Benchmark (vercel/next.js, full clone)
+
+| Metric | Value |
+|---|---|
+| Files scanned | 19,306 (30,931 present; 11,625 skipped, unsupported extension) |
+| Runtime | ~21s |
+| Forge Readiness Score | 59.0/100 (D) |
+| Exact-duplicate rate | 16.4% (3,170 files) |
+| PII detected | email: 220, ip_address: 11, **credit_card: 0** |
+
 ## [0.1.0] — 2026-07-31
 
 An external audit of the original 2026-04-02 `0.1.0` found correctness and honesty issues that blocked release (false all-clear PII audits, unvalidated PII regexes with real false positives, an unimplemented command advertised in `--help`, dead links, a crash on malformed flags, and claims not backed by tests). This entry describes what `0.1.0` actually ships as after remediation, replacing the original entry rather than layering a second one on top of a release that was never correct.

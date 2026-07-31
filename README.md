@@ -14,7 +14,7 @@ The output below is the real, unedited result of running `forge-prep audit examp
 $ forge-prep audit examples/sample-corpus
 
 ╔════════════════════════════════════════════════════╗
-║                 forge-prep v0.1.0                  ║
+║                 forge-prep v0.1.1                  ║
 ║      Data Readiness Toolkit for Mistral Forge      ║
 ╚════════════════════════════════════════════════════╝
 
@@ -56,6 +56,23 @@ The scoring weights and grade bands above are heuristics chosen by this project'
 
 Both commands support `--format {text,json}` and `--quiet` for scripting, and `audit` supports `--fail-under N` to make the exit code CI-friendly (`forge-prep audit ./data --fail-under 70` exits 1 if the score is below 70).
 
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success |
+| `1` | Path doesn't exist, or `--fail-under` threshold not met |
+| `2` | Bad arguments (invalid flags, `--output` resolving inside the input path) |
+| `3` | Nothing to audit/clean — the path has zero files matching a supported extension (or contains no files at all) |
+
+A corpus with zero supported files **never produces a score** — a directory of `.png`/`.exe` files, or an empty directory, prints a distinct "No supported files found" message (files present, files skipped, top unsupported extensions, and the supported-extension list) instead of a fake grade, and JSON output is `{"status": "no_supported_files", "score": null, ...}`. Consumers parsing the JSON should always check `score` for `null` before using it — never assume a numeric score means the corpus was actually assessed.
+
+### Supported extensions
+
+`.txt` `.md` `.mdx` `.csv` `.json` `.jsonl` `.xml` `.html` `.htm` `.py` `.js` `.ts` `.yaml` `.yml` `.rst` `.tex` `.log` `.tsv` `.sql` `.sh` `.adoc` `.org` `.toml` `.ini` `.cfg`
+
+Use `--include-ext .foo,.bar` to scan additional extensions without waiting on a release, and `--exclude-ext .log,.sh` to skip extensions that are in the default set but not relevant to your corpus. Both flags work on `audit` and `clean`.
+
 ### Audit Dimensions
 
 - **Volume** — Is there enough data for Forge pre-training vs. fine-tuning? Token counts are estimated from character counts with a per-file-type multiplier, not run through a real tokenizer. For file types where that estimate's held-out error exceeds ±25% (currently CSV/JSONL), the report shows a range instead of a single number — see [`docs/methodology.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/methodology.md) for exactly how much to trust it.
@@ -66,6 +83,8 @@ Both commands support `--format {text,json}` and `--quiet` for scripting, and `a
 - **Format Consistency** — File type distribution and standardization recommendations
 
 PII scanning covers the full file by default (in bounded, overlapping chunks — never the whole file in memory at once). Use `--pii-scan-limit BYTES` to cap the scan per file for very large corpora; any file the limit truncates is flagged `pii_scan_truncated: true` in the report and called out with a warning, so a partial scan is never silently reported as "clean." Use `--ip-mode {public,all,off}` to control whether private/loopback IP ranges count as PII (default: `public`, meaning private ranges are ignored since they're not personal data on their own).
+
+Credit-card detection rejects published test card numbers (Stripe, Visa, Mastercard, Amex, etc.), low-entropy digit runs (padding, sequential runs), matches inside a longer hex/UUID value, and — by default — matches inside dense/minified/vendored content; use `--strict-pii` to see everything, unfiltered. This was validated against a full clone of `vercel/next.js`: 7 confirmed false positives (Stripe's own test cards, JS numeric constants, a null GUID) before the fix, 0 after — see [`docs/methodology.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/methodology.md) for the details and [`docs/limitations.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/limitations.md) for exactly what's being suppressed.
 
 ### Cleaning Pipeline
 

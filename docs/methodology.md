@@ -45,14 +45,43 @@ The Volume dimension scores against fixed token-count breakpoints (10M / 1M / 10
 
 The Privacy dimension's *ratio thresholds* (what fraction of files with PII counts as "minor" vs. "critical") are author judgement. The *detection* underneath it, however, is not a guess — see [`forge_prep/pii.py`](../forge_prep/pii.py):
 
-- **credit_card**: rejected unless it passes the Luhn/mod-10 checksum (the same check card issuers use).
+- **credit_card**: rejected unless it passes the Luhn/mod-10 checksum, is not a published test PAN (see below), is not a low-entropy/placeholder digit sequence, is a complete token (not a substring of a longer hex/GUID value), and — by default, disable with `--strict-pii` — is not sitting inside dense/vendored/minified content.
 - **iban**: rejected unless it passes the ISO 13616 mod-97 checksum and matches the correct length for its country code (FR, DE, ES, IT, NL, BE, GB supported; other country codes are treated as non-matches rather than guessed at).
 - **french_nir**: rejected unless the INSEE control key (`97 - (first 13 digits mod 97)`) matches, the month is plausible (01–12, or the INSEE special values 20/30/42–99), and the department code is plausible.
 - **ip_address**: rejected if any octet exceeds 255, or if the match is actually part of a longer dotted version string (e.g. `10.2.14.3.1`). Whether private/loopback/link-local ranges count as PII at all is controlled by `--ip-mode` (default `public`, meaning they don't — see the code for the exact ranges via Python's `ipaddress` module).
-- **ssn_us** / **phone_intl**: rejected if immediately preceded by a word from a denylist (`invoice`, `sku`, `order`, `ref`, `version`, `build`, `batch`, `id`) that indicates the number is actually an identifier, not personal data.
+- **ssn_us**: rejected if the digits are a low-entropy/placeholder sequence (see below), or if immediately preceded by a word from a denylist (`invoice`, `sku`, `order`, `ref`, `version`, `build`, `batch`, `id`) that indicates the number is actually an identifier, not personal data.
+- **phone_intl**: rejected if immediately preceded by a denylist word, same list as above.
 - **email**: matched by pattern only — this is deliberately not further validated, since the email pattern itself is already a strong, low-false-positive signal for this purpose.
 
-**Measured precision/recall:** `tests/test_pii_precision.py` runs the detector against a 125-line hand-labeled benchmark (`tests/fixtures/pii_benchmark.jsonl` — 63 true positives spread across all 7 types, 62 hard negatives drawn from order IDs, invoice numbers, version strings, private/malformed IP addresses, and checksum-invalid card/IBAN/NIR numbers). As of this writing, measured performance on that benchmark is:
+### credit_card: fixed after failing on real data (0.1.1)
+
+Luhn alone is weak — it rejects only ~90% of random digit strings, so across megabytes of minified JS and numeric constants, false positives are inevitable. Running the 0.1.0 wheel against a full clone of `vercel/next.js` (a real, large, representative open-source codebase — prose, code, config, and vendored/compiled bundles) surfaced 7 credit_card false positives, all in files still present in the repository as of this writing:
+
+| Matched | What it really is | File |
+|---|---|---|
+| `4242424242424242` | Stripe's published test card | `examples/with-stripe-typescript/README.md` |
+| `4000002760003184` | Stripe's published 3D-Secure test card | `examples/with-stripe-typescript/README.md` |
+| `4503599627370496` | 2^52, a JS numeric constant | `packages/next/src/compiled/crypto-browserify/index.js` |
+| `9007199254740992` | 2^53 (`Number.MAX_SAFE_INTEGER`+1) | `packages/next/src/compiled/crypto-browserify/index.js` |
+| `0000000000000000` | a run of zeros in a padding array | (vendored/compiled content) |
+| `00000000-0000-0000-…` | a fragment of a null GUID | (TypeScript model file) |
+
+Four independent fixes address this, each targeting a different failure mode:
+
+1. **Known test PAN denylist** (`KNOWN_TEST_CARD_NUMBERS` in `forge_prep/pii.py`) — published test card numbers from Stripe, Visa, Mastercard, Amex, Discover, PayPal sandbox, and Adyen documentation, reproduced constantly across real codebases. These are deliberately Luhn-valid (so they behave like real cards in a test environment), which is exactly why Luhn alone can't reject them.
+2. **Low-entropy rejection** (`is_low_entropy_digits`) — fewer than 4 distinct digit values (covers runs of zeros and single-repeated-digit padding) or a strictly ascending/descending run with digit wraparound (catches sequences like `0123456789012345`). Zeros sum to zero under Luhn, so this class needed a separate check.
+3. **Complete-token requirement** (`_breaks_complete_token`) — rejects a match immediately touching a hex letter (it's a substring of a longer hex value, not a standalone number) or touching a dash where the surrounding text is UUID/GUID-shaped. This is what catches the null-GUID case: the regex was matching *inside* a longer structured token rather than requiring the whole token to be a card number.
+4. **Machine-content suppression** (default on, disable with `--strict-pii`) — a match is not reported if the ~200 characters around it have a whitespace ratio below 5% (minified JS, base64, source maps) or the file path contains `dist/`, `compiled/`, `vendor/`, `node_modules/`, `.min.js`, or `.map`.
+
+**Re-verified against the same real corpus after the fix:** all 4 checks were run against the same next.js clone (19,306 files, 90.2 MB scanned). **`credit_card` hits: 0** — including with `--strict-pii` (machine-content suppression disabled), meaning checks 1–3 alone are sufficient for every false positive in this corpus; machine-content suppression is defense-in-depth for corpora this one didn't happen to exercise, not the layer actually doing the work here. Both of the two flagged files (`examples/with-stripe-typescript/README.md` and `packages/next/src/compiled/crypto-browserify/index.js`) now report `pii_detected: []`.
+
+### Should low-entropy / complete-token rules apply to iban and french_nir too?
+
+Considered and **not applied** — reported here per the request to show the reasoning rather than apply it blindly. `iban` (mod-97 checksum) and `french_nir` (INSEE control key) both already have a checksum with a false-accept rate around 1/97 (~1%) for a random digit string, roughly an order of magnitude stronger than Luhn's ~1/10. A low-entropy or sequential digit run essentially never satisfies either checksum by chance, so an additional entropy filter would reject a near-zero number of matches — not worth the added complexity or the (small but nonzero) risk of rejecting a real IBAN/NIR whose account or serial digits happen to look patterned. `ssn_us` has no checksum at all (SSNs aren't checksum-validated), so it was the one case where applying low-entropy rejection had real value — and real cost: it initially rejected a hand-picked benchmark "true positive" (`234-56-7890`) that turned out to be an accidental ascending run, which is exactly the kind of edge case this reasoning predicts. That benchmark entry was fixed rather than the detector loosened, because a perfectly sequential 9-digit run is astronomically unlikely to be a genuinely-assigned SSN and overwhelmingly likely to be a placeholder.
+
+### Measured precision/recall
+
+`tests/test_pii_precision.py` runs the detector against a 154-line hand-labeled benchmark (`tests/fixtures/pii_benchmark.jsonl` — 63 true positives spread across all 7 types, 91 hard negatives). The negative set now includes all 6 next.js false positives from the table above, plus 22 additional hard negatives drawn from realistic minified JS, source maps, UUIDs, git SHAs, and numeric constants, on top of the original order IDs, invoice numbers, version strings, and private/malformed IP addresses. As of this writing, measured performance is:
 
 | Type | Precision | Recall |
 |---|---|---|
@@ -65,7 +94,21 @@ The Privacy dimension's *ratio thresholds* (what fraction of files with PII coun
 | ssn_us | 1.00 | 1.00 |
 | **Overall** | **1.00** | **1.00** |
 
-These numbers describe accuracy on text that *superficially matches* one of the seven supported patterns — they say nothing about PII types the detector doesn't look for at all (names, addresses, dates of birth in prose, free-text identifiers, and more). See [`docs/limitations.md`](limitations.md) for what's out of scope, and treat a perfect benchmark score as evidence the checksum logic is implemented correctly, not as evidence the tool catches most PII in a real corpus. To reproduce or regenerate the benchmark, see `tests/fixtures/build_pii_benchmark.py`.
+**The gap between this number and reality, stated plainly:** `credit_card` was *already* reported as 1.00/1.00 precision/recall against the synthetic benchmark before 0.1.1 — and it still produced 7 confirmed false positives on a real, unremarkable open-source codebase. A perfect synthetic-benchmark score is evidence the implemented logic behaves as designed against the cases the benchmark author thought to write, and nothing more. It is not evidence of real-world precision, and the next.js run is the reason this project now measures against a real corpus (see "Real-corpus benchmark" below) rather than treating the synthetic number as sufficient on its own. To reproduce or regenerate the benchmark, see `tests/fixtures/build_pii_benchmark.py`.
+
+### Real-corpus benchmark (next.js)
+
+In addition to the synthetic benchmark above, every release is checked against a full clone of `vercel/next.js` — a large (19,306 scanned files, 90.2 MB), real, non-adversarial corpus that nobody constructed to test this tool. Current numbers (measured for the 0.1.1 release):
+
+| Metric | Value |
+|---|---|
+| Files scanned | 19,306 (30,931 present; 11,625 skipped for unsupported extension) |
+| Runtime | ~21s |
+| Forge Readiness Score | 59.0/100 (D) |
+| Exact-duplicate rate | 16.4% (3,170 files) |
+| PII detected | email: 220, ip_address: 11, **credit_card: 0** |
+
+See `CHANGELOG.md` for these numbers on each release — a regression in any of them blocks the release.
 
 ## Token estimator
 

@@ -5,6 +5,7 @@ and outputs a clean, Forge-ready corpus.
 
 import hashlib
 import os
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,15 +15,21 @@ from forge_prep.auditor import SUPPORTED_EXTENSIONS
 
 @dataclass
 class CleaningResult:
+    status: str = "ok"  # "ok" | "no_supported_files"
     files_processed: int = 0
     files_kept: int = 0
     files_removed: int = 0
+    files_unreadable: int = 0
     duplicates_removed: int = 0
     pii_scrubbed_files: int = 0
     pii_replacements: int = 0
     bytes_before: int = 0
     bytes_after: int = 0
     actions_log: list = field(default_factory=list)
+    files_present: int = 0
+    files_skipped_by_reason: dict = field(default_factory=dict)
+    skipped_extensions: dict = field(default_factory=dict)
+    supported_extensions: list = field(default_factory=list)
 
     @property
     def reduction_pct(self) -> float:
@@ -45,6 +52,9 @@ class CorpusCleaner:
         max_repetition_ratio: float = 0.5,
         ip_mode: str = "public",
         context_denylist: frozenset | None = None,
+        include_ext: set | None = None,
+        exclude_ext: set | None = None,
+        strict_pii: bool = False,
     ):
         self.input_path = Path(input_path)
         self.output_path = Path(output_path)
@@ -55,13 +65,27 @@ class CorpusCleaner:
         self.max_repetition_ratio = max_repetition_ratio
         self.ip_mode = ip_mode
         self.context_denylist = context_denylist
+        self.extensions = (SUPPORTED_EXTENSIONS | (include_ext or set())) - (exclude_ext or set())
+        self.strict_pii = strict_pii
 
     def clean(self) -> CleaningResult:
         result = CleaningResult()
-        self.output_path.mkdir(parents=True, exist_ok=True)
+        files, files_present, skipped_ext_counter = self._discover_files()
+        result.files_present = files_present
+        result.skipped_extensions = dict(skipped_ext_counter)
 
+        if not files:
+            result.status = "no_supported_files"
+            result.supported_extensions = sorted(self.extensions)
+            result.files_skipped_by_reason = {
+                "unsupported_extension": sum(skipped_ext_counter.values()),
+                "oversized": 0,
+                "unreadable": 0,
+            }
+            return result
+
+        self.output_path.mkdir(parents=True, exist_ok=True)
         seen_hashes: dict[str, str] = {}
-        files = self._discover_files()
 
         for fpath in files:
             result.files_processed += 1
@@ -79,6 +103,7 @@ class CorpusCleaner:
                 text = fpath.read_text(encoding="utf-8", errors="replace")
             except Exception:
                 result.files_removed += 1
+                result.files_unreadable += 1
                 result.actions_log.append(f"SKIP (unreadable): {rel_str}")
                 continue
 
@@ -117,7 +142,10 @@ class CorpusCleaner:
 
             # --- PII scrubbing (shared validated detection path with the auditor) ---
             if self.scrub_pii:
-                text, counts = pii.redact(text, ip_mode=self.ip_mode, context_denylist=self.context_denylist)
+                text, counts = pii.redact(
+                    text, ip_mode=self.ip_mode, context_denylist=self.context_denylist,
+                    file_path=fpath, strict_pii=self.strict_pii,
+                )
                 pii_count = sum(counts.values())
                 if pii_count > 0:
                     result.pii_scrubbed_files += 1
@@ -131,13 +159,26 @@ class CorpusCleaner:
             result.files_kept += 1
             result.bytes_after += len(text.encode("utf-8"))
 
+        result.files_skipped_by_reason = {
+            "unsupported_extension": sum(skipped_ext_counter.values()),
+            "oversized": 0,
+            "unreadable": result.files_unreadable,
+        }
+
         return result
 
-    def _discover_files(self) -> list[Path]:
-        files = []
+    def _discover_files(self) -> tuple[list[Path], int, Counter]:
+        """Return (supported files, total files seen, Counter of skipped extensions)."""
+        supported = []
+        files_present = 0
+        skipped_ext_counter = Counter()
         for root, _dirs, filenames in os.walk(self.input_path):
             for fname in filenames:
                 fpath = Path(root) / fname
-                if fpath.suffix.lower() in SUPPORTED_EXTENSIONS:
-                    files.append(fpath)
-        return sorted(files)
+                files_present += 1
+                ext = fpath.suffix.lower()
+                if ext in self.extensions:
+                    supported.append(fpath)
+                else:
+                    skipped_ext_counter[ext or "(no extension)"] += 1
+        return sorted(supported), files_present, skipped_ext_counter

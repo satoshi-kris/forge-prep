@@ -41,12 +41,62 @@ class TestCorpusAuditor(unittest.TestCase):
         self.assertEqual(result.total_files, 0)
         self.assertEqual(result.total_tokens_estimate, 0)
         self.assertIsInstance(result.recommendations, list)
+        self.assertEqual(result.status, "no_supported_files")
 
     def test_audit_nonexistent_path(self):
         auditor = CorpusAuditor("/nonexistent/path/12345")
         result = auditor.audit()
         self.assertEqual(result.total_files, 0)
         self.assertTrue(len(result.recommendations) > 0)
+        self.assertEqual(result.status, "no_supported_files")
+
+    # --- 1.1: no score on zero supported files ---
+
+    def test_unsupported_extensions_only_sets_status_and_skip_counts(self):
+        self._write_file("a.png", "not really a png")
+        self._write_file("b.exe", "not really an exe")
+        self._write_file("c.png", "another png")
+        auditor = CorpusAuditor(self.test_dir)
+        result = auditor.audit()
+        self.assertEqual(result.status, "no_supported_files")
+        self.assertEqual(result.total_files, 0)
+        self.assertEqual(result.files_present, 3)
+        self.assertEqual(result.skipped_extensions, {".png": 2, ".exe": 1})
+        self.assertEqual(result.files_skipped_by_reason["unsupported_extension"], 3)
+        self.assertIn(".txt", result.supported_extensions)
+
+    def test_only_empty_directory_sets_status(self):
+        auditor = CorpusAuditor(self.test_dir)
+        result = auditor.audit()
+        self.assertEqual(result.status, "no_supported_files")
+        self.assertEqual(result.files_present, 0)
+        self.assertEqual(result.skipped_extensions, {})
+
+    def test_nonexistent_directory_status_distinct_from_unsupported(self):
+        auditor = CorpusAuditor("/nonexistent/path/12345")
+        result = auditor.audit()
+        self.assertEqual(result.status, "no_supported_files")
+        self.assertEqual(result.files_present, 0)
+
+    def test_supported_corpus_has_ok_status(self):
+        self._write_file("doc.txt", "A valid document with enough content to pass quality checks in the auditor pipeline test suite.")
+        auditor = CorpusAuditor(self.test_dir)
+        result = auditor.audit()
+        self.assertEqual(result.status, "ok")
+
+    def test_include_ext_adds_a_format(self):
+        self._write_file("data.foo", "A custom-extension document with enough content to pass the quality threshold checks here.")
+        auditor = CorpusAuditor(self.test_dir, include_ext={".foo"})
+        result = auditor.audit()
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.total_files, 1)
+
+    def test_exclude_ext_removes_a_format(self):
+        self._write_file("doc.txt", "A valid document with enough content to pass quality checks in the auditor pipeline test suite.")
+        auditor = CorpusAuditor(self.test_dir, exclude_ext={".txt"})
+        result = auditor.audit()
+        self.assertEqual(result.status, "no_supported_files")
+        self.assertEqual(result.skipped_extensions, {".txt": 1})
 
     def test_audit_single_file(self):
         self._write_file("doc.txt", "This is a simple English document with enough words to pass the minimum character threshold for quality checks.")
@@ -296,6 +346,43 @@ class TestCorpusCleaner(unittest.TestCase):
         cleaner = CorpusCleaner(self.input_dir, self.output_dir)
         result = cleaner.clean()
         self.assertGreater(result.reduction_pct, 0)
+
+    # --- 1.1: no score on zero supported files ---
+
+    def test_clean_unsupported_extensions_only_sets_status(self):
+        self._write_file("a.png", "not really a png")
+        self._write_file("b.exe", "not really an exe")
+        fresh_output = tempfile.mkdtemp()
+        shutil.rmtree(fresh_output)  # want a path that does NOT exist yet
+        cleaner = CorpusCleaner(self.input_dir, fresh_output)
+        result = cleaner.clean()
+        self.assertEqual(result.status, "no_supported_files")
+        self.assertEqual(result.files_present, 2)
+        self.assertEqual(result.skipped_extensions, {".png": 1, ".exe": 1})
+        self.assertFalse(Path(fresh_output).exists())  # no output dir created
+
+    def test_clean_empty_directory_sets_status(self):
+        cleaner = CorpusCleaner(self.input_dir, self.output_dir)
+        result = cleaner.clean()
+        self.assertEqual(result.status, "no_supported_files")
+        self.assertEqual(result.files_present, 0)
+
+    def test_clean_supported_corpus_has_ok_status(self):
+        self._write_file("doc.txt", "A valid document with enough content to pass quality checks in the cleaner pipeline test.")
+        cleaner = CorpusCleaner(self.input_dir, self.output_dir)
+        result = cleaner.clean()
+        self.assertEqual(result.status, "ok")
+
+    def test_clean_include_ext_adds_a_format(self):
+        self._write_file(
+            "data.foo",
+            "A custom-extension document with enough content to clear the cleaner's default "
+            "100-character minimum length threshold used to filter out very short files.",
+        )
+        cleaner = CorpusCleaner(self.input_dir, self.output_dir, include_ext={".foo"})
+        result = cleaner.clean()
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.files_kept, 1)
 
 
 class TestReadinessScorer(unittest.TestCase):

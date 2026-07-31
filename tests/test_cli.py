@@ -210,6 +210,113 @@ class TestCleanCommand(unittest.TestCase):
         self.assertEqual(code, 2)
 
 
+class TestNoSupportedFiles(unittest.TestCase):
+    """
+    1.1: a corpus with zero supported files must never produce a numeric
+    score. Distinct exit code 3, score: null in JSON, a clearly different
+    message in text mode — for both audit and clean, and for a directory
+    of unsupported files, a directory with no files at all, and a
+    nonexistent directory.
+    """
+
+    def setUp(self):
+        self.unsupported_dir = tempfile.mkdtemp()
+        Path(self.unsupported_dir, "a.png").write_bytes(b"fake")
+        Path(self.unsupported_dir, "b.exe").write_bytes(b"fake")
+        self.empty_dir = tempfile.mkdtemp()
+        self.output_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.unsupported_dir, ignore_errors=True)
+        shutil.rmtree(self.empty_dir, ignore_errors=True)
+        shutil.rmtree(self.output_dir, ignore_errors=True)
+
+    # --- audit: unsupported-only directory ---
+
+    def test_audit_unsupported_only_exits_three(self):
+        code, out, err = run_cli(["audit", self.unsupported_dir, "--output", self.output_dir])
+        self.assertEqual(code, 3)
+
+    def test_audit_unsupported_only_prints_distinct_message_not_a_grade(self):
+        code, out, err = run_cli(["audit", self.unsupported_dir, "--output", self.output_dir])
+        self.assertNotIn("Grade:", out)
+        self.assertNotIn("/100", out)
+        self.assertIn("No supported files found", out)
+        self.assertIn("Files present:", out)
+
+    def test_audit_unsupported_only_json_has_null_score(self):
+        code, out, err = run_cli(["audit", self.unsupported_dir, "--output", self.output_dir, "--format", "json"])
+        self.assertEqual(code, 3)
+        data = json.loads(out)
+        self.assertEqual(data["status"], "no_supported_files")
+        self.assertIsNone(data["score"])
+        self.assertEqual(data["audit"]["status"], "no_supported_files")
+
+    # --- audit: directory with no files at all ---
+
+    def test_audit_empty_directory_exits_three(self):
+        code, out, err = run_cli(["audit", self.empty_dir, "--output", self.output_dir])
+        self.assertEqual(code, 3)
+        self.assertIn("No supported files found", out)
+
+    # --- audit: nonexistent directory stays exit 1, not 3 ---
+
+    def test_audit_nonexistent_directory_still_exits_one(self):
+        code, out, err = run_cli(["audit", "/nonexistent/path/xyz123", "--output", self.output_dir])
+        self.assertEqual(code, 1)
+
+    # --- clean: same three scenarios ---
+
+    def test_clean_unsupported_only_exits_three(self):
+        fresh_output = tempfile.mkdtemp()
+        shutil.rmtree(fresh_output)  # want a path that does NOT exist yet
+        code, out, err = run_cli(["clean", self.unsupported_dir, "--output", fresh_output])
+        self.assertEqual(code, 3)
+        self.assertIn("No supported files found", out)
+        self.assertFalse(Path(fresh_output).exists())
+
+    def test_clean_unsupported_only_json_has_null_score(self):
+        code, out, err = run_cli(["clean", self.unsupported_dir, "--output", self.output_dir, "--format", "json"])
+        self.assertEqual(code, 3)
+        data = json.loads(out)
+        self.assertEqual(data["status"], "no_supported_files")
+        self.assertIsNone(data["score"])
+
+    def test_clean_empty_directory_exits_three(self):
+        code, out, err = run_cli(["clean", self.empty_dir, "--output", self.output_dir])
+        self.assertEqual(code, 3)
+
+    def test_clean_nonexistent_directory_still_exits_one(self):
+        code, out, err = run_cli(["clean", "/nonexistent/path/xyz123", "--output", self.output_dir])
+        self.assertEqual(code, 1)
+
+    # --- --include-ext / --exclude-ext flags reach the audit ---
+
+    def test_include_ext_flag_avoids_no_supported_files(self):
+        d = tempfile.mkdtemp()
+        try:
+            Path(d, "data.foo").write_text(
+                "A custom-extension document with enough content to pass the quality threshold checks here.",
+                encoding="utf-8",
+            )
+            code, out, err = run_cli(["audit", d, "--output", self.output_dir, "--include-ext", ".foo", "--quiet"])
+            self.assertEqual(code, 0)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_exclude_ext_flag_triggers_no_supported_files(self):
+        d = tempfile.mkdtemp()
+        try:
+            Path(d, "doc.txt").write_text(
+                "A valid document with enough content to pass quality checks in the auditor pipeline test.",
+                encoding="utf-8",
+            )
+            code, out, err = run_cli(["audit", d, "--output", self.output_dir, "--exclude-ext", ".txt"])
+            self.assertEqual(code, 3)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
 class TestColorHandling(unittest.TestCase):
     def test_no_color_when_format_json(self):
         self.assertFalse(cli._use_color("json", quiet=False))

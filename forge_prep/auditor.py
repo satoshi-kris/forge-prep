@@ -39,6 +39,7 @@ class FileAudit:
 class CorpusAuditResult:
     timestamp: str
     corpus_path: str
+    status: str = "ok"  # "ok" | "no_supported_files" — check this before trusting `score`
     total_files: int = 0
     total_size_bytes: int = 0
     total_tokens_estimate: int = 0
@@ -53,6 +54,11 @@ class CorpusAuditResult:
     quality_issues: dict = field(default_factory=dict)
     file_audits: list = field(default_factory=list)
     recommendations: list = field(default_factory=list)
+    # Visibility into what wasn't assessed, not just what was.
+    files_present: int = 0
+    files_skipped_by_reason: dict = field(default_factory=dict)  # {"unsupported_extension": N, "oversized": N, "unreadable": N}
+    skipped_extensions: dict = field(default_factory=dict)  # {ext: count} for every unsupported extension encountered
+    supported_extensions: list = field(default_factory=list)  # populated when status != "ok"
 
     def to_dict(self):
         return asdict(self)
@@ -75,9 +81,10 @@ LANG_MARKERS = {
 }
 
 SUPPORTED_EXTENSIONS = {
-    ".txt", ".md", ".csv", ".json", ".jsonl", ".xml",
+    ".txt", ".md", ".mdx", ".csv", ".json", ".jsonl", ".xml",
     ".html", ".htm", ".py", ".js", ".ts", ".yaml", ".yml",
     ".rst", ".tex", ".log", ".tsv", ".sql", ".sh",
+    ".adoc", ".org", ".toml", ".ini", ".cfg",
 }
 
 # Token-count multipliers, in characters per token (token_estimate =
@@ -135,12 +142,17 @@ class CorpusAuditor:
         pii_scan_limit: int = 0,
         ip_mode: str = "public",
         context_denylist: frozenset | None = None,
+        include_ext: set | None = None,
+        exclude_ext: set | None = None,
+        strict_pii: bool = False,
     ):
         self.corpus_path = Path(corpus_path)
         self.sample_size = sample_size
         self.pii_scan_limit = pii_scan_limit
         self.ip_mode = ip_mode
         self.context_denylist = context_denylist
+        self.extensions = (SUPPORTED_EXTENSIONS | (include_ext or set())) - (exclude_ext or set())
+        self.strict_pii = strict_pii
         self._hashes: dict[str, str] = {}
 
     def audit(self) -> CorpusAuditResult:
@@ -150,11 +162,15 @@ class CorpusAuditor:
         )
 
         if not self.corpus_path.exists():
+            result.status = "no_supported_files"
+            result.supported_extensions = sorted(self.extensions)
             result.recommendations.append(f"Path does not exist: {self.corpus_path}")
             return result
 
-        files = self._discover_files()
+        files, files_present, skipped_ext_counter = self._discover_files()
         result.total_files = len(files)
+        result.files_present = files_present
+        result.skipped_extensions = dict(skipped_ext_counter)
 
         ext_counter = Counter()
         lang_counter = Counter()
@@ -184,18 +200,38 @@ class CorpusAuditor:
         result.file_type_distribution = dict(ext_counter)
         result.language_distribution = dict(lang_counter)
         result.quality_issues = dict(quality_counter)
+        # "oversized" stays at 0 — no file-size cap exists yet in this
+        # release. The key is present now so JSON consumers don't need a
+        # schema migration when one is added later.
+        result.files_skipped_by_reason = {
+            "unsupported_extension": sum(skipped_ext_counter.values()),
+            "oversized": 0,
+            "unreadable": quality_counter.get("unreadable", 0),
+        }
+
+        if not files:
+            result.status = "no_supported_files"
+            result.supported_extensions = sorted(self.extensions)
+
         result.recommendations = self._generate_recommendations(result)
 
         return result
 
-    def _discover_files(self) -> list[Path]:
-        files = []
+    def _discover_files(self) -> tuple[list[Path], int, Counter]:
+        """Return (supported files, total files seen, Counter of skipped extensions)."""
+        supported = []
+        files_present = 0
+        skipped_ext_counter = Counter()
         for root, _dirs, filenames in os.walk(self.corpus_path):
             for fname in filenames:
                 fpath = Path(root) / fname
-                if fpath.suffix.lower() in SUPPORTED_EXTENSIONS:
-                    files.append(fpath)
-        return sorted(files)
+                files_present += 1
+                ext = fpath.suffix.lower()
+                if ext in self.extensions:
+                    supported.append(fpath)
+                else:
+                    skipped_ext_counter[ext or "(no extension)"] += 1
+        return sorted(supported), files_present, skipped_ext_counter
 
     def _audit_file(self, fpath: Path) -> FileAudit:
         stat = fpath.stat()
@@ -247,6 +283,7 @@ class CorpusAuditor:
             scan_limit=self.pii_scan_limit,
             ip_mode=self.ip_mode,
             context_denylist=self.context_denylist,
+            strict_pii=self.strict_pii,
         )
         audit.pii_detected = pii_types
         audit.pii_scan_truncated = truncated
@@ -286,8 +323,14 @@ class CorpusAuditor:
     def _generate_recommendations(self, result: CorpusAuditResult) -> list[str]:
         recs = []
 
-        if result.total_files == 0:
-            recs.append("No supported files found. Ensure your corpus contains text files (.txt, .md, .json, .jsonl, .csv, etc.).")
+        if result.status == "no_supported_files":
+            if result.files_present > 0:
+                recs.append(
+                    f"{result.files_present:,} file(s) were present but none matched a supported extension. "
+                    f"Use --include-ext to add formats, e.g. --include-ext .mdx,.adoc"
+                )
+            else:
+                recs.append("No files were found in this path at all.")
             return recs
 
         # Duplicates

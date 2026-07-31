@@ -224,6 +224,12 @@
       ".py": 1,
       ".txt": 7
     },
+    "files_present": 10,
+    "files_skipped_by_reason": {
+      "oversized": 0,
+      "unreadable": 0,
+      "unsupported_extension": 0
+    },
     "language_distribution": {
       "en": 4,
       "fr": 1,
@@ -241,6 +247,9 @@
       "Corpus is only 0.0 MB. For effective Forge pre-training, aim for 1+ GB of clean, deduplicated text.",
       "Estimated 2,873 tokens. Forge pre-training typically requires 10B+ tokens for domain coverage; fine-tuning can be effective with 100K–10M tokens."
     ],
+    "skipped_extensions": {},
+    "status": "ok",
+    "supported_extensions": [],
     "tokens_estimate_uncertain": true,
     "total_files": 10,
     "total_size_bytes": 11117,

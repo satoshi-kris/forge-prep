@@ -73,6 +73,50 @@ def _check_output_not_inside_input(input_path: Path, output_path: Path):
         sys.exit(2)
 
 
+def _parse_ext_list(raw: str) -> set:
+    """Parse a comma-separated extension list ('.mdx,.adoc' or 'mdx, adoc') into {'.mdx', '.adoc'}."""
+    exts = set()
+    for part in raw.split(","):
+        part = part.strip().lower()
+        if not part:
+            continue
+        exts.add(part if part.startswith(".") else f".{part}")
+    return exts
+
+
+def _skip_breakdown_line(result) -> str:
+    reasons = result.files_skipped_by_reason
+    total_skipped = sum(reasons.values())
+    parts = ", ".join(f"{v:,} {k.replace('_', ' ')}" for k, v in reasons.items() if v > 0)
+    return f"{total_skipped:,} skipped" + (f" ({parts})" if parts else "")
+
+
+def _top_skipped_extensions_line(result, limit: int = 5) -> str | None:
+    if not result.skipped_extensions:
+        return None
+    top = sorted(result.skipped_extensions.items(), key=lambda kv: -kv[1])[:limit]
+    return ", ".join(f"{ext} ({count:,})" for ext, count in top)
+
+
+def _no_supported_files_message(result, action: str) -> list:
+    """Lines explaining why nothing was found — shared by audit and clean, text mode."""
+    lines = [f"No supported files found — nothing to {action}.", ""]
+    lines.append(f"  Files present:     {result.files_present:,}")
+    lines.append(f"  Files skipped:     {sum(result.files_skipped_by_reason.values()):,}")
+    top_ext = _top_skipped_extensions_line(result)
+    if top_ext:
+        lines.append(f"  Top extensions:    {top_ext}")
+    lines.append("")
+    lines.append(f"  Supported extensions: {', '.join(result.supported_extensions)}")
+    lines.append("")
+    lines.append("  Use --include-ext to add a format, e.g. --include-ext .mdx,.adoc")
+    return lines
+
+
+def _no_supported_files_json(result_dict: dict, key: str) -> dict:
+    return {"status": result_dict["status"], "score": None, key: result_dict}
+
+
 def _print_audit_text(audit_result, score_result, c: _Colors, elapsed: float, md_path, json_path):
     mb = audit_result.total_size_bytes / 1024 / 1024
 
@@ -96,6 +140,12 @@ def _print_audit_text(audit_result, score_result, c: _Colors, elapsed: float, md
         print(f"  Tokens:   ~{audit_result.total_tokens_estimate:,}")
     print(f"  Dupes:    {audit_result.duplicate_count:,}")
     print(f"  PII hits: {audit_result.pii_files_count:,}")
+    if sum(audit_result.files_skipped_by_reason.values()) > 0:
+        line = f"  Skipped:  {_skip_breakdown_line(audit_result)}"
+        top_ext = _top_skipped_extensions_line(audit_result)
+        if top_ext:
+            line += f" — top: {top_ext}"
+        print(line)
     print()
 
     print(f"{c.BOLD}  Dimension Breakdown{c.RESET}")
@@ -129,6 +179,8 @@ def cmd_audit(args: argparse.Namespace) -> int:
 
     output_dir = Path(args.output)
     _check_output_not_inside_input(corpus, output_dir)
+    include_ext = _parse_ext_list(args.include_ext) if args.include_ext else None
+    exclude_ext = _parse_ext_list(args.exclude_ext) if args.exclude_ext else None
 
     if args.format == "text" and not args.quiet:
         _print_banner(c)
@@ -139,8 +191,29 @@ def cmd_audit(args: argparse.Namespace) -> int:
         str(corpus),
         pii_scan_limit=args.pii_scan_limit,
         ip_mode=args.ip_mode,
+        include_ext=include_ext,
+        exclude_ext=exclude_ext,
+        strict_pii=args.strict_pii,
     )
     audit_result = auditor.audit()
+
+    if audit_result.status == "no_supported_files":
+        result_dict = audit_result.to_dict()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "forge_readiness_report.json").write_text(
+            json.dumps(_no_supported_files_json(result_dict, "audit"), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        (output_dir / "forge_readiness_report.md").write_text(
+            "# Forge Readiness Report\n\n" + "\n".join(_no_supported_files_message(audit_result, "audit")) + "\n",
+            encoding="utf-8",
+        )
+        if args.format == "json":
+            print(json.dumps(_no_supported_files_json(result_dict, "audit"), indent=2, ensure_ascii=False))
+        elif not args.quiet:
+            for line in _no_supported_files_message(audit_result, "audit"):
+                print(f"{c.YELLOW}{line}{c.RESET}" if line.startswith("No supported") else line)
+        return 3
 
     scorer = ReadinessScorer()
     score_result = scorer.score(audit_result)
@@ -182,6 +255,8 @@ def cmd_clean(args: argparse.Namespace) -> int:
 
     output_path = Path(args.output)
     _check_output_not_inside_input(input_path, output_path)
+    include_ext = _parse_ext_list(args.include_ext) if args.include_ext else None
+    exclude_ext = _parse_ext_list(args.exclude_ext) if args.exclude_ext else None
 
     dedup = not args.no_dedup
     scrub_pii = not args.no_pii
@@ -201,9 +276,21 @@ def cmd_clean(args: argparse.Namespace) -> int:
         min_text_density=args.min_text_density,
         max_repetition_ratio=args.max_repetition_ratio,
         ip_mode=args.ip_mode,
+        include_ext=include_ext,
+        exclude_ext=exclude_ext,
+        strict_pii=args.strict_pii,
     )
     result = cleaner.clean()
     elapsed = time.time() - start
+
+    if result.status == "no_supported_files":
+        result_dict = _clean_result_to_dict(result)
+        if args.format == "json":
+            print(json.dumps(_no_supported_files_json(result_dict, "clean"), indent=2, ensure_ascii=False))
+        elif not args.quiet:
+            for line in _no_supported_files_message(result, "clean"):
+                print(f"{c.YELLOW}{line}{c.RESET}" if line.startswith("No supported") else line)
+        return 3
 
     if args.format == "json":
         print(json.dumps(_clean_result_to_dict(result), indent=2, ensure_ascii=False))
@@ -218,6 +305,12 @@ def cmd_clean(args: argparse.Namespace) -> int:
             f"  Size:       {result.bytes_before / 1024 / 1024:.1f} MB → "
             f"{result.bytes_after / 1024 / 1024:.1f} MB ({result.reduction_pct:.1f}% reduction)"
         )
+        if sum(result.files_skipped_by_reason.values()) > 0:
+            line = f"  Skipped:    {_skip_breakdown_line(result)}"
+            top_ext = _top_skipped_extensions_line(result)
+            if top_ext:
+                line += f" — top: {top_ext}"
+            print(line)
         print(f"\n{c.GREEN}Clean corpus written to: {output_path}{c.RESET}")
         print(f"{c.DIM}Completed in {elapsed:.2f}s{c.RESET}\n")
 
@@ -245,6 +338,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="How to treat IP addresses: 'public' (default, ignores RFC1918/loopback/link-local), 'all', or 'off'",
     )
     audit_p.add_argument("--fail-under", type=float, default=None, metavar="N", help="Exit 1 if the readiness score is below N")
+    audit_p.add_argument(
+        "--include-ext", default=None, metavar="EXT[,EXT...]",
+        help="Comma-separated extensions to scan in addition to the default set, e.g. --include-ext .foo,.bar",
+    )
+    audit_p.add_argument(
+        "--exclude-ext", default=None, metavar="EXT[,EXT...]",
+        help="Comma-separated extensions to skip even though they're in the default set",
+    )
+    audit_p.add_argument(
+        "--strict-pii", action="store_true",
+        help="Disable the machine-content suppression (dense/vendored/minified files) for credit_card detection",
+    )
     audit_p.add_argument("--format", choices=["text", "json"], default="text", help="Output format (default: text)")
     audit_p.add_argument("--quiet", action="store_true", help="Suppress non-essential output")
     audit_p.set_defaults(func=cmd_audit)
@@ -260,6 +365,18 @@ def build_parser() -> argparse.ArgumentParser:
     clean_p.add_argument(
         "--ip-mode", choices=sorted(IP_MODES), default="public",
         help="How to treat IP addresses: 'public' (default, ignores RFC1918/loopback/link-local), 'all', or 'off'",
+    )
+    clean_p.add_argument(
+        "--include-ext", default=None, metavar="EXT[,EXT...]",
+        help="Comma-separated extensions to scan in addition to the default set, e.g. --include-ext .foo,.bar",
+    )
+    clean_p.add_argument(
+        "--exclude-ext", default=None, metavar="EXT[,EXT...]",
+        help="Comma-separated extensions to skip even though they're in the default set",
+    )
+    clean_p.add_argument(
+        "--strict-pii", action="store_true",
+        help="Disable the machine-content suppression (dense/vendored/minified files) for credit_card detection",
     )
     clean_p.add_argument("--format", choices=["text", "json"], default="text", help="Output format (default: text)")
     clean_p.add_argument("--quiet", action="store_true", help="Suppress non-essential output")

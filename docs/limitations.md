@@ -17,6 +17,17 @@ forge-prep's PII detector (`forge_prep/pii.py`) matches seven specific, structur
 
 If your corpus is likely to contain any of the above, forge-prep's Privacy score and PII counts will understate your actual exposure — a clean scan is not evidence of a clean corpus.
 
+## Known false positive classes
+
+These are patterns that *used* to produce false positives, confirmed by running against a real, non-adversarial corpus (a full clone of `vercel/next.js`) — not hypothetical edge cases. As of 0.1.1 they're all suppressed by default; understanding what's being filtered out matters if you're deciding whether to trust a "no PII found" result.
+
+- **Published test card numbers** (Stripe, Visa, Mastercard, Amex, Discover, PayPal, Adyen documentation) — e.g. `4242424242424242`. These appear constantly in READMEs, integration tests, and example `.env` files, and are deliberately Luhn-valid so they behave like real cards in a sandbox. If your corpus contains a *real* card number that happens to collide with a published test number (astronomically unlikely, since real PANs are issuer-assigned), it will not be flagged.
+- **Low-entropy digit runs** — fewer than 4 distinct digits (padding, zero-runs) or a strictly ascending/descending sequence (`0123456789012345`). This also applies to `ssn_us`. A genuinely-assigned SSN or PAN that happens to be perfectly sequential (vanishingly unlikely) would not be flagged.
+- **Numbers embedded in a longer hex/UUID/GUID value** — a 16-digit run inside a 32-character hex string or inside a UUID (e.g. the digits inside `00000000-0000-0000-0000-000000000000`) is not treated as a standalone card number.
+- **Dense, whitespace-free content** (minified JS, base64 blobs, source maps) and files under `dist/`, `compiled/`, `vendor/`, `node_modules/`, `*.min.js`, or `*.map` — credit-card matches from these are suppressed by default. Use `--strict-pii` to disable this and see everything, including matches you'll then need to triage yourself. On the next.js benchmark corpus, disabling this suppression did not change the credit-card count (still zero) — the denylist, entropy, and token-boundary checks did the actual work there, but a different corpus could plausibly hit this suppression layer where the others don't.
+
+None of these suppression rules are applied to `iban` or `french_nir` — their checksums (mod-97, INSEE control key) already have a false-accept rate around 1% for random digit strings, an order of magnitude stronger than Luhn, so the same classes of false positive are far less likely to occur there in the first place. See [`docs/methodology.md`](methodology.md) for the full reasoning and the real-corpus numbers.
+
 ## Redaction is pseudonymisation, not anonymisation
 
 `forge-prep clean` replaces detected PII with typed placeholders (`[EMAIL_REDACTED]`, `[SSN_REDACTED]`, etc.). This is **pseudonymisation**, not anonymisation, under the GDPR's definitions (Art. 4(5); Recital 26):
