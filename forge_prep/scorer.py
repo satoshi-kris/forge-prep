@@ -123,23 +123,34 @@ class ReadinessScorer:
         return DimensionScore(name="Quality", score=score, weight=0.25, details=detail)
 
     def _score_deduplication(self, audit: CorpusAuditResult) -> DimensionScore:
-        """Score based on duplicate content ratio."""
+        """
+        Score based on combined exact + near-duplicate content ratio.
+        Exact-hash dedup only catches byte-identical files; a corpus full
+        of documents that differ by a header/footer/date stamp scores
+        misleadingly well on exact-hash alone, so near-duplicates (from
+        MinHash/LSH, see forge_prep/near_dup.py) count too. The two
+        never overlap — a file already counted as an exact duplicate is
+        not also counted as a near duplicate.
+        """
         if audit.total_files == 0:
             return DimensionScore(name="Deduplication", score=0, weight=0.15, details="No files.")
 
-        dup_ratio = audit.duplicate_count / audit.total_files
+        redundant = audit.duplicate_count + audit.near_duplicate_count
+        dup_ratio = redundant / audit.total_files
+        near_note = f", {audit.near_duplicate_count} near-duplicates" if audit.near_duplicate_count else ""
+
         if dup_ratio < 0.02:
             score = 100
             detail = "Virtually no duplicates detected."
         elif dup_ratio < 0.1:
             score = 75
-            detail = f"{audit.duplicate_count} duplicates ({dup_ratio:.1%}) — minor dedup needed."
+            detail = f"{audit.duplicate_count} exact{near_note} ({dup_ratio:.1%} total) — minor dedup needed."
         elif dup_ratio < 0.3:
             score = 45
-            detail = f"{audit.duplicate_count} duplicates ({dup_ratio:.1%}) — significant dedup required."
+            detail = f"{audit.duplicate_count} exact{near_note} ({dup_ratio:.1%} total) — significant dedup required."
         else:
             score = 15
-            detail = f"{audit.duplicate_count} duplicates ({dup_ratio:.1%}) — severe duplication problem."
+            detail = f"{audit.duplicate_count} exact{near_note} ({dup_ratio:.1%} total) — severe duplication problem."
 
         return DimensionScore(name="Deduplication", score=score, weight=0.15, details=detail)
 

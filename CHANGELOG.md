@@ -2,6 +2,21 @@
 
 All notable changes to forge-prep will be documented in this file.
 
+## [0.2.0] — 2026-08-01
+
+The 0.2.0 brief has five independently-shippable items; this release covers the first (near-duplicate detection), shipped on its own rather than held for the rest.
+
+### Added
+- **Near-duplicate detection** (MinHash + LSH, pure stdlib — no numpy/scipy/datasketch). Exact-hash dedup only catches byte-identical files; real corpora are full of documents that differ by a header, footer, date stamp, or boilerplate disclaimer, which exact hashing misses entirely. Word 5-gram shingles, 128-permutation MinHash, 16-band/8-row LSH banding for candidate generation, union-find clustering confirmed against actual estimated Jaccard similarity. `--near-dup-threshold` (default 0.85), `--no-near-dup` to disable, `--shingle-cap N` (0 = uncapped) to trade accuracy for speed on large files. Reports clusters (not just pairs), each with a representative file, in both the CLI summary and JSON (`near_duplicate_count`, `near_duplicate_ratio`, `near_duplicate_clusters`, plus `is_near_duplicate`/`near_duplicate_of`/`near_duplicate_similarity` per file). A file already counted as an exact duplicate is never double-counted as a near-duplicate.
+- The Deduplication score now incorporates near-duplicates alongside exact duplicates (combined ratio) — documented in `docs/methodology.md`.
+- `tests/test_near_dup.py` (28 tests) plus auditor/CLI integration tests. Test suite: 131 → 170 tests.
+- `tests/fixtures/measure_shingle_cap.py` — measures recall/precision lost to shingle capping against real >200KB documents with independently-computed ground-truth Jaccard.
+
+### Performance
+- Initial implementation measured **6.9x** baseline runtime on a full `vercel/next.js` clone (19,306 files) — well over an initial, self-imposed 2x target. Root cause: a small number of large, heavily-shingled files (compiled bundles, generated manifests) dominated cost; one 2.5MB/62,855-shingle file alone took 1.36s to hash. Fixed with a deterministic shingle cap (a "bottom-k" sketch that bounds worst-case per-file cost regardless of document size) and a faster multiplicative hash in place of the classical `(a·x+b) mod prime` construction, first tuned to `MAX_SHINGLES = 150` purely for runtime — **without measuring the accuracy cost, which the test suite's fixtures were all too small to catch**.
+- **That gap was caught before release and closed.** Measured against 35 (original, variant) pairs built from real books with known Jaccard (ground truth computed independently, on the full uncapped shingle sets — not derived from this tool's own output), cap 150 measured 0.929 recall / 0.929 precision and missed 12 of 614 real near-duplicate files on the next.js corpus; cap 2000 measured 1.000 recall / 0.933 precision. **Default raised from 150 to 2000** on that basis — runtime goes to 2.76x baseline (19.3s → 53.3s on the same next.js corpus) instead of under 2x, trading the original arbitrary runtime target for recall, since a corpus audit runs once per corpus update and a missed real duplicate is worse than an extra 34 seconds. Full cap/recall/precision/runtime table in `docs/methodology.md`, including the honest caveat that the 14-positive-pair sample means single-pair flips move the numbers by ~7 points — the table supports "150 measurably misses real duplicates" and "2000 achieves perfect recall in this test" with confidence; it does not support fine-grained claims between 250/500/2000.
+- LSH's false-negative behavior (a true near-duplicate pair can be missed if it never lands in the same band) is documented explicitly in `docs/methodology.md`, not glossed over — it's an inherent, standard LSH tradeoff, not a bug, but worth knowing before trusting the near-dup count as exhaustive.
+
 ## [0.1.1] — 2026-08-01
 
 Bug-fix release. Findings below came from running the published 0.1.0 wheel against a full clone of `vercel/next.js` (19,306 supported files scanned, 90.2 MB, ~21s on this machine) — verified, not hypothetical. Every finding was reproduced against the real files in that corpus before being fixed, and re-verified against the same corpus after.

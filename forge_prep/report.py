@@ -41,7 +41,8 @@ class ReadinessReport:
             f"| Total files | {a.total_files:,} |",
             f"| Total size | {mb:.1f} MB |",
             f"| Estimated tokens | {self._token_estimate_display(a)} |",
-            f"| Duplicates | {a.duplicate_count:,} ({a.duplicate_count / max(a.total_files, 1) * 100:.1f}%) |",
+            f"| Duplicates (exact) | {a.duplicate_count:,} ({a.duplicate_count / max(a.total_files, 1) * 100:.1f}%) |",
+            f"| Near-duplicates | {a.near_duplicate_count:,} ({a.near_duplicate_ratio:.1%}, {len(a.near_duplicate_clusters):,} clusters) |",
             f"| Files with PII | {a.pii_files_count:,} |",
             "",
             "## Dimension Scores",
@@ -62,6 +63,20 @@ class ReadinessReport:
         for ext, count in sorted(a.file_type_distribution.items(), key=lambda x: -x[1]):
             pct = count / max(a.total_files, 1) * 100
             lines.append(f"- `{ext}`: {count} files ({pct:.1f}%)")
+
+        if a.near_duplicate_clusters:
+            lines.extend([
+                "",
+                "## Near-Duplicate Clusters",
+                "",
+                "Estimated via MinHash/LSH (Jaccard similarity over word 5-gram shingles) — not exact-hash matches. "
+                "See `docs/methodology.md` for the threshold and false-negative caveats.",
+                "",
+            ])
+            for cluster in sorted(a.near_duplicate_clusters, key=lambda cl: -cl["size"])[:20]:
+                lines.append(f"- **{cluster['representative']}** — {cluster['size']} files: {', '.join(cluster['members'])}")
+            if len(a.near_duplicate_clusters) > 20:
+                lines.append(f"- *(and {len(a.near_duplicate_clusters) - 20} more clusters — see the JSON report for the full list)*")
 
         lines.extend([
             "",

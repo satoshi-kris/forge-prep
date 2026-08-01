@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "forge-prep"
-version = "0.1.1"
+version = "0.2.0"
 description = "Data readiness toolkit for Mistral Forge — audit, clean, and prepare enterprise data for custom model training. forge-prep is an independent open-source project. It is not affiliated with, endorsed by, or sponsored by Mistral AI."
 readme = "README.md"
 license = "Apache-2.0"

@@ -11,6 +11,7 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
+from forge_prep import near_dup
 from forge_prep._version import get_version
 from forge_prep.auditor import CorpusAuditor
 from forge_prep.cleaner import CorpusCleaner
@@ -139,6 +140,11 @@ def _print_audit_text(audit_result, score_result, c: _Colors, elapsed: float, md
     else:
         print(f"  Tokens:   ~{audit_result.total_tokens_estimate:,}")
     print(f"  Dupes:    {audit_result.duplicate_count:,}")
+    if audit_result.near_duplicate_count:
+        print(
+            f"  Near-dup: {audit_result.near_duplicate_count:,} "
+            f"({len(audit_result.near_duplicate_clusters):,} cluster{'s' if len(audit_result.near_duplicate_clusters) != 1 else ''})"
+        )
     print(f"  PII hits: {audit_result.pii_files_count:,}")
     if sum(audit_result.files_skipped_by_reason.values()) > 0:
         line = f"  Skipped:  {_skip_breakdown_line(audit_result)}"
@@ -194,6 +200,9 @@ def cmd_audit(args: argparse.Namespace) -> int:
         include_ext=include_ext,
         exclude_ext=exclude_ext,
         strict_pii=args.strict_pii,
+        near_dup_threshold=args.near_dup_threshold,
+        no_near_dup=args.no_near_dup,
+        shingle_cap=args.shingle_cap,
     )
     audit_result = auditor.audit()
 
@@ -349,6 +358,16 @@ def build_parser() -> argparse.ArgumentParser:
     audit_p.add_argument(
         "--strict-pii", action="store_true",
         help="Disable the machine-content suppression (dense/vendored/minified files) for credit_card detection",
+    )
+    audit_p.add_argument(
+        "--near-dup-threshold", type=float, default=near_dup.DEFAULT_THRESHOLD, metavar="RATIO",
+        help=f"Estimated Jaccard similarity above which files are clustered as near-duplicates (default: {near_dup.DEFAULT_THRESHOLD})",
+    )
+    audit_p.add_argument("--no-near-dup", action="store_true", help="Disable near-duplicate detection")
+    audit_p.add_argument(
+        "--shingle-cap", type=int, default=near_dup.MAX_SHINGLES, metavar="N",
+        help=f"Max shingles hashed per file for near-dup detection, 0 = uncapped — trades accuracy for speed "
+             f"on large files (default: {near_dup.MAX_SHINGLES}; see docs/methodology.md for the measured tradeoff)",
     )
     audit_p.add_argument("--format", choices=["text", "json"], default="text", help="Output format (default: text)")
     audit_p.add_argument("--quiet", action="store_true", help="Suppress non-essential output")

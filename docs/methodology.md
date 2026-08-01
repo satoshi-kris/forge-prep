@@ -19,7 +19,7 @@ Implemented in [`forge_prep/scorer.py`](../forge_prep/scorer.py), `ReadinessScor
 | Volume | 0.25 | Estimated token count vs. rule-of-thumb thresholds for pre-training vs. fine-tuning | Author judgement — no published Mistral token-count requirement exists for Forge as of this writing |
 | Quality | 0.25 | Rate of quality flags (`too_short`, `low_text_density`, `sparse_lines`, `high_repetition`) across files | Author judgement |
 | Privacy | 0.20 | Fraction of files with at least one validated PII match | Author judgement on ratio thresholds; the underlying detectors use published checksum algorithms (Luhn, ISO 13616 IBAN mod-97, INSEE NIR control key) — see the Privacy detail below |
-| Deduplication | 0.15 | Fraction of files that are exact-content duplicates (SHA-256) | Author judgement |
+| Deduplication | 0.15 | Fraction of files that are exact-content duplicates (SHA-256) *or* estimated near-duplicates (MinHash/LSH) | Author judgement on ratio thresholds; near-dup detection is a standard, published algorithm (Broder, 1997) — see "Near-duplicate detection" below |
 | Language Focus | 0.10 | Number of distinct detected languages | Author judgement |
 | Format Consistency | 0.05 | Number of distinct file extensions | Author judgement |
 
@@ -40,6 +40,45 @@ These bands are round numbers chosen by the author for readability, not derived 
 ### Volume thresholds
 
 The Volume dimension scores against fixed token-count breakpoints (10M / 1M / 100K / 10K). These are the author's general-purpose rule of thumb for "pre-training needs roughly 10B+ tokens for domain coverage; fine-tuning can work with 100K–10M" — a widely repeated industry rule of thumb, not a number sourced from Mistral Forge documentation specifically. If Mistral publishes concrete Forge token requirements, these breakpoints should be updated to match and this note removed.
+
+## Near-duplicate detection
+
+Exact-hash dedup (SHA-256) only catches byte-identical files. Real corpora are full of documents that differ by a header, footer, date stamp, or boilerplate disclaimer — exact hashing misses all of them, which made the Deduplication dimension systematically over-optimistic on exactly the kind of data this tool exists to assess. On the next.js benchmark corpus (see below), exact-hash dedup alone found 3,170 duplicates (16.4%); near-duplicate detection found another 602 files (3.1%) that exact hashing missed entirely — files whose content overlaps almost completely but isn't byte-identical, mostly repeated test-fixture boilerplate (e.g. the same `next.config.js` reused with minor edits across dozens of test directories).
+
+### Algorithm
+
+Implemented in [`forge_prep/near_dup.py`](../forge_prep/near_dup.py), pure stdlib (no numpy/scipy/datasketch — consistent with the zero-runtime-dependency guarantee):
+
+1. **Shingling**: each document is split into word 5-grams after whitespace normalization and case folding (`shingle_text`).
+2. **MinHash**: each shingle is hashed once, then run through 128 independent fast multiplicative hash functions (seeded deterministically, so signatures are reproducible run to run), keeping the minimum output per function. Two documents' Jaccard similarity is estimated by the fraction of the 128 signature positions where they agree.
+3. **LSH banding**: the 128-value signature is split into 16 bands of 8 rows each. Two documents are only ever compared if they share an identical band in *at least one* of the 16 bands — this is what keeps the algorithm sub-quadratic (never O(n²) pairwise comparison across the whole corpus).
+4. **Confirmation + clustering**: LSH-candidate pairs are confirmed against the actual estimated Jaccard (not just the one matching band) before being merged, via union-find, into connected-component clusters. Only clusters with 2+ members are reported, each with a representative (its first member in sorted path order — same convention as exact-hash dedup's "first-seen is canonical").
+
+`--near-dup-threshold` (default **0.85** estimated Jaccard) controls sensitivity; `--no-near-dup` disables detection entirely (skips signature computation, not just clustering, so it's also the fast path). A file already counted as an exact duplicate is never also counted as a near-duplicate — the two counts don't overlap — and both feed into the Deduplication score as a combined ratio.
+
+### LSH has false negatives by design — this is expected, not a bug
+
+Banding only generates a candidate pair if the two documents share an identical 8-value band by chance. For genuinely similar documents this happens with high probability (that's the point of the band/row parameters), but it means a small fraction of true near-duplicates near the threshold boundary can be missed. This is the standard, well-understood LSH speed/recall tradeoff — the alternative is full pairwise comparison, which does not scale. `--near-dup-threshold` does not override this: lowering it only affects whether an already-found *candidate* pair is confirmed, not whether LSH finds it as a candidate in the first place (verified in `tests/test_near_dup.py`, `test_unrelated_documents_never_become_lsh_candidates`).
+
+### Performance: bounding cost on large files, and what that costs in recall
+
+The signature-computation step is O(shingles × 128) per file. A handful of large, heavily-shingled files (compiled bundles, generated manifests) dominated runtime disproportionately in initial testing — one 2.5MB, 62,855-shingle file in the next.js corpus took 1.36s on its own. `MAX_SHINGLES` bounds this: documents with more shingles than the cap are reduced via a deterministic "bottom-k" sketch (`forge_prep/near_dup.py`, `_bounded_shingle_hashes`: `heapq.nsmallest(max_shingles, hashes)` — selection is by hash *value*, confirmed not by document position, so two documents sharing only a middle section still match correctly) before MinHash runs. A second, smaller factor: fast multiplicative hashing (`((a·h) ^ b) & 0xFFFFFFFFFFFFFFFF`, Knuth-style) instead of the classical `(a·x + b) mod prime` universal-hash construction — a ~1.6x speedup on its own, with slightly higher signature variance as the tradeoff, not incorrectness.
+
+**The first shipped value (150) was tuned for runtime alone, without measuring the accuracy cost** — every fixture in `tests/test_near_dup.py` is small enough that the cap never engages, so nothing in the test suite could have caught this. That gap was found and closed before release, not after — see `tests/fixtures/measure_shingle_cap.py`, which builds 35 (original, variant) pairs from 7 real books (Project Gutenberg, public domain, boilerplate stripped, 429KB–1.26MB each), each with a known modification: 5%/10%/20%/30% of paragraphs replaced with unrelated content, plus a header/footer-only edit. True Jaccard is computed directly on the full, uncapped shingle sets (independent ground truth, not derived from this tool's own output) — 14 of the 35 pairs are true near-duplicates at the default 0.85 threshold, 21 are not.
+
+| cap | precision | recall | next.js runtime | vs. baseline (19.3s) |
+|---|---|---|---|---|
+| 150 | 0.929 | 0.929 | 35.9s | 1.86x |
+| 250 | 1.000 | 0.857 | 40.4s | 2.09x |
+| 500 | 1.000 | 0.929 | 43.8s | 2.27x |
+| **2000 (current default)** | **0.933** | **1.000** | **53.3s** | **2.76x** |
+| uncapped | 0.875 | 1.000 | 86.7s | 4.49x |
+
+**Read this table with its sample size in mind.** With only 14 positive pairs, a single classification flip moves recall by ~7 percentage points — the non-monotonic dip at 250 and the precision drop at 2000/uncapped are consistent with ordinary MinHash sampling noise at 128 permutations (the standard error of the similarity estimate near a 0.85 true-Jaccard boundary is itself on the order of ±0.03–0.06), not a claim that "more shingles causes worse precision." Two things this table does support with confidence: **150 measurably misses real near-duplicates** (missed 1 of 14 constructed pairs, and 12 of 614 real near-duplicate files found on the next.js corpus), and **2000 achieves perfect recall on this test** at a runtime that's still fast in absolute terms for a once-per-corpus-update operation (53s, not 53 minutes).
+
+**Default raised from 150 to 2000** on this basis — trading the original, self-imposed 2x runtime target (arbitrary, per the person who set it) for recall, since a corpus audit runs once per corpus update, not in a hot loop, and a missed real duplicate is worse than an extra 34 seconds. `--shingle-cap N` (0 = uncapped) exposes this as a user-tunable tradeoff instead of a buried constant — lower it for faster audits of huge corpora where some recall loss on large files is acceptable, raise it or set it to 0 for maximum recall when runtime doesn't matter.
+
+Reproduce: `python3 tests/fixtures/measure_shingle_cap.py /path/to/7+ real books over 200KB each` for the recall/precision table; `--shingle-cap`/`--no-near-dup` against a fresh `vercel/next.js` clone for runtime. Exact numbers will vary by machine and by which books/corpus you use.
 
 ## Privacy scoring and PII detection
 

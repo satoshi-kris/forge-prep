@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from forge_prep import pii
+from forge_prep import near_dup, pii
 
 
 @dataclass
@@ -30,6 +30,10 @@ class FileAudit:
     word_count: int = 0
     is_duplicate: bool = False
     duplicate_of: str | None = None
+    is_near_duplicate: bool = False
+    near_duplicate_of: str | None = None
+    near_duplicate_similarity: float | None = None
+    near_duplicate_cluster_id: int | None = None
     quality_flags: list = field(default_factory=list)
     pii_detected: list = field(default_factory=list)
     pii_scan_truncated: bool = False
@@ -50,6 +54,9 @@ class CorpusAuditResult:
     language_distribution: dict = field(default_factory=dict)
     duplicate_count: int = 0
     duplicate_bytes: int = 0
+    near_duplicate_count: int = 0
+    near_duplicate_ratio: float = 0.0
+    near_duplicate_clusters: list = field(default_factory=list)  # [{"representative": path, "members": [...], "size": N}]
     pii_files_count: int = 0
     quality_issues: dict = field(default_factory=dict)
     file_audits: list = field(default_factory=list)
@@ -145,6 +152,9 @@ class CorpusAuditor:
         include_ext: set | None = None,
         exclude_ext: set | None = None,
         strict_pii: bool = False,
+        near_dup_threshold: float = near_dup.DEFAULT_THRESHOLD,
+        no_near_dup: bool = False,
+        shingle_cap: int = near_dup.MAX_SHINGLES,
     ):
         self.corpus_path = Path(corpus_path)
         self.sample_size = sample_size
@@ -153,7 +163,11 @@ class CorpusAuditor:
         self.context_denylist = context_denylist
         self.extensions = (SUPPORTED_EXTENSIONS | (include_ext or set())) - (exclude_ext or set())
         self.strict_pii = strict_pii
+        self.near_dup_threshold = near_dup_threshold
+        self.no_near_dup = no_near_dup
+        self.shingle_cap = shingle_cap
         self._hashes: dict[str, str] = {}
+        self._minhash_signatures: dict[str, list] = {}
 
     def audit(self) -> CorpusAuditResult:
         result = CorpusAuditResult(
@@ -209,6 +223,9 @@ class CorpusAuditor:
             "unreadable": quality_counter.get("unreadable", 0),
         }
 
+        if not self.no_near_dup:
+            self._assign_near_duplicates(result)
+
         if not files:
             result.status = "no_supported_files"
             result.supported_extensions = sorted(self.extensions)
@@ -216,6 +233,39 @@ class CorpusAuditor:
         result.recommendations = self._generate_recommendations(result)
 
         return result
+
+    def _assign_near_duplicates(self, result: CorpusAuditResult) -> None:
+        """
+        Cluster files by estimated content similarity (MinHash/LSH) and
+        write the results back onto each FileAudit. The representative of
+        each cluster is its first member in sorted path order — same
+        convention as exact-hash dedup's "first-seen is canonical". A file
+        that's already an exact duplicate is not also counted as a near
+        duplicate, so the two counts never overlap.
+        """
+        clusters = near_dup.find_clusters(self._minhash_signatures, threshold=self.near_dup_threshold)
+        audits_by_path = {fa.path: fa for fa in result.file_audits}
+
+        for cluster_id, members in enumerate(clusters):
+            representative = members[0]
+            rep_signature = self._minhash_signatures[representative]
+            cluster_info = {"representative": representative, "members": members, "size": len(members)}
+            result.near_duplicate_clusters.append(cluster_info)
+
+            for member in members:
+                fa = audits_by_path.get(member)
+                if fa is None or member == representative or fa.is_duplicate:
+                    continue
+                fa.is_near_duplicate = True
+                fa.near_duplicate_of = representative
+                fa.near_duplicate_similarity = round(
+                    near_dup.estimate_jaccard(self._minhash_signatures[member], rep_signature), 4
+                )
+                fa.near_duplicate_cluster_id = cluster_id
+                result.near_duplicate_count += 1
+
+        if result.total_files:
+            result.near_duplicate_ratio = result.near_duplicate_count / result.total_files
 
     def _discover_files(self) -> tuple[list[Path], int, Counter]:
         """Return (supported files, total files seen, Counter of skipped extensions)."""
@@ -271,6 +321,13 @@ class CorpusAuditor:
             audit.duplicate_of = self._hashes[content_hash]
         else:
             self._hashes[content_hash] = fpath.relative_to(self.corpus_path).as_posix()
+
+        # --- Near-duplicate signature (MinHash) — clustering happens once,
+        # after every file has been audited, in _assign_near_duplicates() ---
+        if not self.no_near_dup:
+            self._minhash_signatures[audit.path] = near_dup.minhash_signature(
+                near_dup.shingle_text(text), max_shingles=self.shingle_cap
+            )
 
         # --- Language detection ---
         sample_words = [w.lower().strip(".,;:!?\"'()") for w in words[:self.sample_size]]

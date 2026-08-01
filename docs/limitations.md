@@ -28,6 +28,12 @@ These are patterns that *used* to produce false positives, confirmed by running 
 
 None of these suppression rules are applied to `iban` or `french_nir` — their checksums (mod-97, INSEE control key) already have a false-accept rate around 1% for random digit strings, an order of magnitude stronger than Luhn, so the same classes of false positive are far less likely to occur there in the first place. See [`docs/methodology.md`](methodology.md) for the full reasoning and the real-corpus numbers.
 
+## Near-duplicate detection limitations
+
+The precision figure reported in `docs/methodology.md` for near-duplicate detection (0.933–1.000 depending on shingle cap) was measured against negative pairs drawn from **different books** — i.e. unrelated documents with essentially no real content overlap. That's an easy negative case. **Hard negatives were not tested**: different chapters of the same work, different documents generated from a shared template, or different records that share a lot of common boilerplate but are legitimately distinct. Those are exactly the cases where MinHash/LSH is most likely to produce a false positive in practice, and real-world precision on a corpus containing them may be meaningfully lower than the reported figure. Treat the measured precision as an upper bound from an easy test set, not a guarantee.
+
+Near-duplicate detection also has a practical corpus-size ceiling that hasn't been tested past. It holds a 128-integer MinHash signature per file in memory for the whole run, on top of the existing per-file audit records, and the entire audit — including near-dup — is single-threaded. The only corpus this has been measured against is a full clone of `vercel/next.js`: 19,308 files, 90MB, 53s. Corpora an order of magnitude larger (hundreds of thousands of files, gigabytes of text) are untested and may exhaust memory or take proportionally longer — there's no data either way. Streaming file reads and parallelism are planned (see the roadmap) but not implemented; until they are, treat this as validated at "one large real-world repository" scale, not "enterprise-wide corpus" scale.
+
 ## Redaction is pseudonymisation, not anonymisation
 
 `forge-prep clean` replaces detected PII with typed placeholders (`[EMAIL_REDACTED]`, `[SSN_REDACTED]`, etc.). This is **pseudonymisation**, not anonymisation, under the GDPR's definitions (Art. 4(5); Recital 26):

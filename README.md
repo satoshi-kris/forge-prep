@@ -14,7 +14,7 @@ The output below is the real, unedited result of running `forge-prep audit examp
 $ forge-prep audit examples/sample-corpus
 
 ╔════════════════════════════════════════════════════╗
-║                 forge-prep v0.1.1                  ║
+║                 forge-prep v0.2.0                  ║
 ║      Data Readiness Toolkit for Mistral Forge      ║
 ╚════════════════════════════════════════════════════╝
 
@@ -35,7 +35,7 @@ Auditing: examples/sample-corpus
   Dimension Breakdown
   Volume               █░░░░░░░░░░░░░░  10.0  2,873 tokens (0 MB) — insufficient for any Forge training stage. Token count is
   Quality              ███░░░░░░░░░░░░  20.0  Pervasive quality issues (40% flag rate). Major filtering needed.
-  Deduplication        ██████░░░░░░░░░  45.0  1 duplicates (10.0%) — significant dedup required.
+  Deduplication        ██████░░░░░░░░░  45.0  1 exact (10.0% total) — significant dedup required.
   Privacy              █░░░░░░░░░░░░░░  10.0  Widespread PII (6 files, 60.0%). Critical: scrub before any training.
   Language Focus       ████████████░░░  80.0  Bilingual corpus — consider if both languages are needed for your domain.
   Format Consistency   ██████████░░░░░  70.0  4 file formats. Consider standardizing to .txt or .jsonl for Forge.
@@ -77,7 +77,7 @@ Use `--include-ext .foo,.bar` to scan additional extensions without waiting on a
 
 - **Volume** — Is there enough data for Forge pre-training vs. fine-tuning? Token counts are estimated from character counts with a per-file-type multiplier, not run through a real tokenizer. For file types where that estimate's held-out error exceeds ±25% (currently CSV/JSONL), the report shows a range instead of a single number — see [`docs/methodology.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/methodology.md) for exactly how much to trust it.
 - **Quality** — Short files, low text density, high repetition, encoding issues
-- **Deduplication** — Exact content duplicates detected via SHA-256 hashing
+- **Deduplication** — Exact content duplicates (SHA-256) *and* near-duplicates: documents that differ only by a header, footer, date stamp, or boilerplate disclaimer, detected via MinHash/LSH over word 5-gram shingles (pure stdlib — no numpy). Default similarity threshold 0.85, configurable with `--near-dup-threshold`; disable with `--no-near-dup`. Large files are capped at 2000 shingles for speed (`--shingle-cap N`, `0` = uncapped) — this cap was tuned once for runtime alone without measuring the accuracy cost, then re-measured against real documents with known Jaccard and raised once the recall loss was quantified; see [`docs/methodology.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/methodology.md) for the full recall/precision/runtime table. Report includes clusters (not just pairs), each with a representative file. On a full clone of `vercel/next.js`, this found 611 near-duplicate files (3.2%) that exact hashing missed entirely, at 2.76x baseline runtime (53s for 19,306 files).
 - **Privacy** — PII detection across the *entire* file (email, phone, IP, credit card, SSN, IBAN, French NIR), each validated with a checksum or context check to cut down on false positives — see [`docs/limitations.md`](https://github.com/satoshi-kris/forge-prep/blob/main/docs/limitations.md) for what it can't see
 - **Language Focus** — Multilingual corpus detection with automatic language identification
 - **Format Consistency** — File type distribution and standardization recommendations
@@ -167,7 +167,6 @@ The typical enterprise corpus contains:
 
 Nothing below is built yet — none of it is claimed elsewhere in this README.
 
-- [ ] Near-duplicate detection (MinHash/LSH over shingles) — exact-hash dedup catches almost nothing in real corpora where documents differ by a header or footer
 - [ ] JSONL training-format converter (chat, instruction, completion schemas)
 - [ ] GitHub Action wrapping `--fail-under` / `--format json` with a job summary
 - [ ] PDF/DOCX text extraction (optional `[docs]` extra)
